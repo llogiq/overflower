@@ -1,5 +1,5 @@
 [package]
-name = "overflower-support"
+name = "overflower_support"
 version = "0.1.0"
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 license = "Apache-2.0"

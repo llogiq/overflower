@@ -4,8 +4,9 @@ version = "0.1.0"
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/llogiq/overflower"
+description = "A compiler plugin to easily select overflow behavior for all integer operations of an item"
 readme = "README.md"
 keywords = ["arithmetic", "overflow", "plugin"]
 
 [dependencies]
-overflower-support = { version = "*", path = "support" }
+overflower_support = { version = "*", path = "support" }
