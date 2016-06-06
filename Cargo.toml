@@ -8,5 +8,9 @@ description = "A compiler plugin to easily select overflow behavior for all inte
 readme = "README.md"
 keywords = ["arithmetic", "overflow", "plugin"]
 
+[lib]
+crate-type = [ "dylib" ]
+plugin = true
+
 [dependencies]
 overflower_support = { version = "*", path = "support" }
