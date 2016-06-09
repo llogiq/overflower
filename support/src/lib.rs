@@ -55,6 +55,45 @@ panic_biself!(Mul, MulPanic, mul, mul_panic, checked_mul);
 panic_biself!(Div, DivPanic, div, div_panic, checked_div);
 panic_biself!(Rem, RemPanic, rem, rem_panic, checked_rem);
 
+macro_rules! panic_assign_biself {
+    ($trait_name:ident, $trait_panic:ident, $fn_name:ident, $fn_panic:ident, $checked_fn:ident) => {
+        #[doc(hidden)]
+        pub trait $trait_panic<RHS = Self> {
+            fn $fn_panic(&mut self, rhs: RHS);
+        }
+
+        impl<T, R> $trait_panic<R> for T where T: $trait_name<R> {
+            default fn $fn_panic(&mut self, rhs: R) {
+                std::ops::$trait_name::$fn_name(self, rhs)
+            }
+        }
+
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, u8);
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, u16);
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, u32);
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, u64);
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, usize);
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, i8);
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, i16);
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, i32);
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, i64);
+        panic_assign_biself!($trait_panic, $fn_panic, $checked_fn, isize);
+    };
+    ($trait_panic:ident, $fn_panic:ident, $checked_fn:ident, $ty:ty) => {
+        impl $trait_panic<$ty> for $ty {
+            fn $fn_panic(&mut self, rhs: $ty) {
+                *self = self.$checked_fn(rhs).expect("arithmetic overflow");
+            }
+        }
+    }
+}
+
+panic_assign_biself!(AddAssign, AddPanicAssign, add_assign, add_assign_panic, checked_add);
+panic_assign_biself!(SubAssign, SubPanicAssign, sub_assign, sub_assign_panic, checked_sub);
+panic_assign_biself!(MulAssign, MulPanicAssign, mul_assign, mul_assign_panic, checked_mul);
+panic_assign_biself!(DivAssign, DivPanicAssign, div_assign, div_assign_panic, checked_div);
+panic_assign_biself!(RemAssign, RemPanicAssign, rem_assign, rem_assign_panic, checked_rem);
+
 macro_rules! wrap_biself {
     ($trait_name:ident, $trait_wrap:ident, $fn_name:ident, $fn_wrap:ident, $wrapped_fn:ident) => {
         #[doc(hidden)]
@@ -96,6 +135,45 @@ wrap_biself!(Mul, MulWrap, mul, mul_wrap, wrapping_mul);
 wrap_biself!(Div, DivWrap, div, div_wrap, wrapping_div);
 wrap_biself!(Rem, RemWrap, rem, rem_wrap, wrapping_rem);
 
+macro_rules! wrap_assign_biself {
+    ($trait_name:ident, $trait_wrap:ident, $fn_name:ident, $fn_wrap:ident, $wrapped_fn:ident) => {
+        #[doc(hidden)]
+        pub trait $trait_wrap<RHS = Self> {
+            fn $fn_wrap(&mut self, rhs: RHS);
+        }
+
+        impl<T, R> $trait_wrap<R> for T where T: $trait_name<R> {
+            default fn $fn_wrap(&mut self, rhs: R) {
+                std::ops::$trait_name::$fn_name(self, rhs)
+            }
+        }
+
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, u8);
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, u16);
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, u32);
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, u64);
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, usize);
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, i8);
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, i16);
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, i32);
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, i64);
+        wrap_assign_biself!($trait_wrap, $fn_wrap, $wrapped_fn, isize);
+    };
+    ($trait_wrap:ident, $fn_wrap:ident, $wrapped_fn:ident, $ty:ty) => {
+        impl $trait_wrap<$ty> for $ty {
+            fn $fn_wrap(&mut self, rhs: $ty) {
+                *self = self.$wrapped_fn(rhs);
+            }
+        }
+    }
+}
+
+wrap_assign_biself!(AddAssign, AddWrapAssign, add_assign, add_assign_wrap, wrapping_add);
+wrap_assign_biself!(SubAssign, SubWrapAssign, sub_assign, sub_assign_wrap, wrapping_sub);
+wrap_assign_biself!(MulAssign, MulWrapAssign, mul_assign, mul_assign_wrap, wrapping_mul);
+wrap_assign_biself!(DivAssign, DivWrapAssign, div_assign, div_assign_wrap, wrapping_div);
+wrap_assign_biself!(RemAssign, RemWrapAssign, rem_assign, rem_assign_wrap, wrapping_rem);
+
 macro_rules! saturate_biself {
     ($trait_name:ident, $trait_saturate:ident, $fn_name:ident, $fn_saturate:ident, $saturated_fn:ident) => {
         #[doc(hidden)]
@@ -134,6 +212,49 @@ macro_rules! saturate_biself {
 saturate_biself!(Add, AddSaturate, add, add_saturate, saturating_add);
 saturate_biself!(Sub, SubSaturate, sub, sub_saturate, saturating_sub);
 saturate_biself!(Mul, MulSaturate, mul, mul_saturate, saturating_mul);
+
+pub trait DivSaturate<Rhs=Self> {
+    type Output;
+    fn div_saturate(self, rhs: Rhs) -> Self::Output;
+}
+
+pub trait RemSaturate<RHS=Self> {
+    type Output;
+    fn rem_saturate(self, rhs: RHS) -> Self::Output;
+}
+
+macro_rules! saturate {
+    ($ty:ty, $min:path, $max:path) => {
+        #[allow(unused_comparisons)]
+        impl DivSaturate for $ty {
+            type Output = $ty;
+            fn div_saturate(self, rhs: $ty) -> $ty {
+                if rhs != 0 { self / rhs }
+                else if self < 0 { $min }
+                else if self == 0 { 0 }
+                else { $max }
+            }
+        }
+        
+        impl RemSaturate for $ty {
+            type Output = $ty;
+            fn rem_saturate(self, rhs: $ty) -> $ty {
+                self % rhs
+            }
+        }
+    };
+}
+
+saturate!(u8,    std::u8::MIN,    std::u8::MAX);
+saturate!(u16,   std::u16::MIN,   std::u16::MAX);
+saturate!(u32,   std::u32::MIN,   std::u32::MAX);
+saturate!(u64,   std::u64::MIN,   std::u64::MAX);
+saturate!(usize, std::usize::MIN, std::usize::MAX);
+saturate!(i8,    std::i8::MIN,    std::i8::MAX);
+saturate!(i16,   std::i16::MIN,   std::i16::MAX);
+saturate!(i32,   std::i32::MIN,   std::i32::MAX);
+saturate!(i64,   std::i64::MIN,   std::i64::MAX);
+saturate!(isize, std::isize::MIN, std::isize::MAX);
 
 macro_rules! panic_shifts {
     (@$trait_name:ident, $trait_panic:ident, $fn_name:ident, $fn_panic:ident, $checked_fn:ident) => {
@@ -292,6 +413,11 @@ neg_wrap!(i16);
 neg_wrap!(i32);
 neg_wrap!(i64);
 neg_wrap!(isize);
+
+pub trait NegSaturate {
+    fn neg_saturate(self) -> Self;
+}
+
 
 #[cfg(test)]
 mod test {
