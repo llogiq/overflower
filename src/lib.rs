@@ -1,4 +1,4 @@
-#![feature(plugin_registrar, rustc_private)]
+#![feature(plugin_registrar, quote, rustc_private)]
 
 extern crate rustc_plugin;
 extern crate syntax;
@@ -7,9 +7,10 @@ use std::fmt::{self, Display, Formatter};
 
 use rustc_plugin::registry::Registry; 
 use syntax::codemap::{DUMMY_SP, Span, Spanned};
+use syntax::ast::{BinOpKind, Expr, ExprKind, Item, Mac, MetaItem, MetaItemKind, UnOp};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
-use syntax::ast::{BinOpKind, Expr, ExprKind, Item, Mac, MetaItem, MetaItemKind, UnOp};
+use syntax::ext::expand::expand_expr;
 use syntax::fold::{self, Folder};
 use syntax::parse::token;
 use syntax::ptr::P;
@@ -38,21 +39,13 @@ struct Overflower<'a, 'cx: 'a> {
     cx: &'a mut ExtCtxt<'cx>,
 }
 
-fn get_binop(expr: &Expr) -> Option<BinOpKind> {
-    if let ExprKind::Binary(op, _, _) = expr.node {
-        Some(op.node)
-    } else {
-        None
-    }
-}
-
 impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
-    //fn fold_item_simple(&mut self, i: Item) -> Item {
-    //    TODO: extern crate + trait use
-    //}
-    
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
         if self.mode == Mode::DontCare { return expr; }
+        if let ExprKind::Mac(_) = expr.node {
+            let expanded = expand_expr(expr.unwrap(), &mut self.cx.expander());
+            return self.fold_expr(expanded);
+        }
         match expr.unwrap() {
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Add, .. }, l, r), .. } => {
                 tag_method(self, "add", l, vec![r])
@@ -78,16 +71,41 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
             Expr { node: ExprKind::Unary(UnOp::Neg, arg), .. } => {
                 tag_method(self, "neg", arg, vec![])
             }
-            e => P(e),
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Add, .. }, l, r), .. } => {
+                tag_method(self, "add_assign", l, vec![r])
+            }
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Sub, .. }, l, r), .. } => {
+                tag_method(self, "sub_assign", l, vec![r])
+            }
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Mul, .. }, l, r), .. } => {
+                tag_method(self, "mul_assign", l, vec![r])
+            }
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Div, .. }, l, r), .. } => {
+                tag_method(self, "div_assign", l, vec![r])
+            }
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Rem, .. }, l, r), .. } => {
+                tag_method(self, "rem_assign", l, vec![r])
+            }
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shl, .. }, l, r), .. } => {
+                tag_method(self, "shl_assign", l, vec![r])
+            }
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shr, .. }, l, r), .. } => {
+                tag_method(self, "shr_assign", l, vec![r])
+            }
+            e => P(fold::noop_fold_expr(e, self)),
         }
     }
+    
+    fn fold_mac(&mut self, mac: Mac) -> Mac {
+        fold::noop_fold_mac(mac, self)
+    }    
 }
 
 fn tag_method(o: &mut Overflower, name: &str, receiver: P<Expr>, args: Vec<P<Expr>>) -> P<Expr> {
-    o.cx.expr_method_call(DUMMY_SP,
-                          receiver,
-                          o.cx.ident_of(&format!("{}_{}", name, o.mode)),
-                          args)
+    let rec = receiver.map(|r| fold::noop_fold_expr(r, o));
+    let fn_name = o.cx.ident_of(&format!("{}_{}", name, o.mode));
+    let args_expanded = args.into_iter().map(|a| a.map(|e| fold::noop_fold_expr(e, o))).collect();
+    o.cx.expr_method_call(DUMMY_SP, rec, fn_name, args_expanded)
 }
 
 fn get_mode(mi: &MetaItem) -> Result<Mode, (Span, &'static str)> {
