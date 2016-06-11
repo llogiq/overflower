@@ -12,6 +12,12 @@ fn test_simple_wrap() {
 }
 
 #[test]
+#[overflow(wrap)]
+fn test_double_wrap() {
+    1u8 - 2 + 2;
+}
+
+#[test]
 #[overflow(panic)]
 #[should_panic]
 fn test_simple_panic_sub() {
