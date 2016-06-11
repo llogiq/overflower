@@ -7,13 +7,14 @@ use std::fmt::{self, Display, Formatter};
 
 use rustc_plugin::registry::Registry; 
 use syntax::codemap::{DUMMY_SP, Span, Spanned};
-use syntax::ast::{BinOpKind, Expr, ExprKind, Item, Mac, MetaItem, MetaItemKind, UnOp};
+use syntax::ast::{BinOpKind, Expr, ExprKind, Item, ItemKind, Mac, MetaItem, MetaItemKind, UnOp};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
-use syntax::ext::expand::expand_expr;
+use syntax::ext::expand::{expand_expr, expand_item};
 use syntax::fold::{self, Folder};
 use syntax::parse::token;
 use syntax::ptr::P;
+use syntax::util::small_vector::SmallVector;
 
 #[derive(PartialEq, Eq)]
 enum Mode {
@@ -40,6 +41,17 @@ struct Overflower<'a, 'cx: 'a> {
 }
 
 impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
+    fn fold_item(&mut self, item: P<Item>) -> SmallVector<P<Item>> {
+        if let ItemKind::Mac(_) = item.node {
+            let expanded = expand_item(item, &mut self.cx.expander());
+            expanded.into_iter()
+                    .flat_map(|i| fold::noop_fold_item(i, self).into_iter())
+                    .collect()
+        } else {
+            fold::noop_fold_item(item, self)
+        }
+    }
+    
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
         if self.mode == Mode::DontCare { return expr; }
         if let ExprKind::Mac(_) = expr.node {
@@ -102,9 +114,9 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
 }
 
 fn tag_method(o: &mut Overflower, name: &str, receiver: P<Expr>, args: Vec<P<Expr>>) -> P<Expr> {
-    let rec = receiver.map(|r| fold::noop_fold_expr(r, o));
+    let rec = o.fold_expr(receiver);
     let fn_name = o.cx.ident_of(&format!("{}_{}", name, o.mode));
-    let args_expanded = args.into_iter().map(|a| a.map(|e| fold::noop_fold_expr(e, o))).collect();
+    let args_expanded = args.into_iter().map(|e| o.fold_expr(e)).collect();
     o.cx.expr_method_call(DUMMY_SP, rec, fn_name, args_expanded)
 }
 
