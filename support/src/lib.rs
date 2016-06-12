@@ -13,6 +13,7 @@
 
 #![feature(specialization)]
 use std::ops::*;
+use std::cmp::*;
 
 macro_rules! panic_biself {
     ($trait_name:ident, $trait_panic:ident, $fn_name:ident, $fn_panic:ident, $checked_fn:ident) => {
@@ -218,26 +219,43 @@ pub trait DivSaturate<Rhs=Self> {
     fn div_saturate(self, rhs: Rhs) -> Self::Output;
 }
 
+impl<R, T: Div<R>> DivSaturate<R> for T {
+    type Output = <T as Div<R>>::Output;
+    default fn div_saturate(self, rhs: R) -> Self::Output {
+        Div::div(self, rhs)
+    }
+}
+
 pub trait RemSaturate<RHS=Self> {
     type Output;
     fn rem_saturate(self, rhs: RHS) -> Self::Output;
 }
 
-macro_rules! saturate {
+impl<R, T: Rem<R>> RemSaturate<R> for T {
+    type Output = <T as Rem<R>>::Output;
+    default fn rem_saturate(self, rhs: R) -> Self::Output {
+        Rem::rem(self, rhs)
+    }
+}
+
+macro_rules! saturate_signed {
     ($ty:ty, $min:path, $max:path) => {
         #[allow(unused_comparisons)]
         impl DivSaturate for $ty {
-            type Output = $ty;
             fn div_saturate(self, rhs: $ty) -> $ty {
-                if rhs != 0 { self / rhs }
-                else if self < 0 { $min }
-                else if self == 0 { 0 }
-                else { $max }
+                match rhs {
+                    0 => match self.cmp(&0) {
+                        Ordering::Greater => $max,
+                        Ordering::Equal => 0,
+                        Ordering::Less => $min
+                    },
+                    -1 => if self == $min { $max } else { -self },
+                    _ => self / rhs
+                }
             }
         }
-        
+
         impl RemSaturate for $ty {
-            type Output = $ty;
             fn rem_saturate(self, rhs: $ty) -> $ty {
                 self % rhs
             }
@@ -245,16 +263,36 @@ macro_rules! saturate {
     };
 }
 
-saturate!(u8,    std::u8::MIN,    std::u8::MAX);
-saturate!(u16,   std::u16::MIN,   std::u16::MAX);
-saturate!(u32,   std::u32::MIN,   std::u32::MAX);
-saturate!(u64,   std::u64::MIN,   std::u64::MAX);
-saturate!(usize, std::usize::MIN, std::usize::MAX);
-saturate!(i8,    std::i8::MIN,    std::i8::MAX);
-saturate!(i16,   std::i16::MIN,   std::i16::MAX);
-saturate!(i32,   std::i32::MIN,   std::i32::MAX);
-saturate!(i64,   std::i64::MIN,   std::i64::MAX);
-saturate!(isize, std::isize::MIN, std::isize::MAX);
+macro_rules! saturate_unsigned {
+    ($ty:ty, $max:path) => {
+        #[allow(unused_comparisons)]
+        impl DivSaturate for $ty {
+            fn div_saturate(self, rhs: $ty) -> $ty {
+                match rhs {
+                    0 => if self == 0 { 0 } else { $max },
+                    _ => self / rhs
+                }
+            }
+        }
+
+        impl RemSaturate for $ty {
+            fn rem_saturate(self, rhs: $ty) -> $ty {
+                self % rhs
+            }
+        }
+    };
+}
+
+saturate_unsigned!(u8,    std::u8::MAX);
+saturate_unsigned!(u16,   std::u16::MAX);
+saturate_unsigned!(u32,   std::u32::MAX);
+saturate_unsigned!(u64,   std::u64::MAX);
+saturate_unsigned!(usize, std::usize::MAX);
+saturate_signed!(i8,    std::i8::MIN,    std::i8::MAX);
+saturate_signed!(i16,   std::i16::MIN,   std::i16::MAX);
+saturate_signed!(i32,   std::i32::MIN,   std::i32::MAX);
+saturate_signed!(i64,   std::i64::MIN,   std::i64::MAX);
+saturate_signed!(isize, std::isize::MIN, std::isize::MAX);
 
 macro_rules! panic_shifts {
     (@$trait_name:ident, $trait_panic:ident, $fn_name:ident, $fn_panic:ident, $checked_fn:ident) => {
@@ -356,6 +394,8 @@ macro_rules! wrap_shifts {
 wrap_shifts!(@Shl, ShlWrap, shl, shl_wrap, wrapping_shl);
 wrap_shifts!(@Shr, ShrWrap, shr, shr_wrap, wrapping_shr);
 
+//TODO: saturate_shifts!
+
 #[doc(hidden)]
 pub trait NegPanic {
     type Output;
@@ -418,27 +458,42 @@ pub trait NegSaturate {
     fn neg_saturate(self) -> Self;
 }
 
+macro_rules! neg_saturate {
+    ($ty:ty, $min:expr, $max:expr) => {
+        impl NegSaturate for $ty {
+            fn neg_saturate(self) -> Self {
+                if self == $min { $max } else { -self }
+            }
+        }
+    };
+}
+
+neg_saturate!(i8, std::i8::MIN, std::i8::MAX);
+neg_saturate!(i16, std::i16::MIN, std::i16::MAX);
+neg_saturate!(i32, std::i32::MIN, std::i32::MAX);
+neg_saturate!(i64, std::i64::MIN, std::i64::MAX);
+neg_saturate!(isize, std::isize::MIN, std::isize::MAX);
 
 #[cfg(test)]
 mod test {
     use super::{AddPanic, SubWrap, MulSaturate};
-    
+
     #[test]
     fn test_add_panic_normal() {
         assert_eq!(1 + 2, 1.add_panic(2));
     }
-    
+
     #[test]
     #[should_panic]
     fn test_add_panic_panics() {
         255u8.add_panic(2u8);
     }
-    
+
     #[test]
     fn test_sub_wrap() {
         assert_eq!(255, 1u8.sub_wrap(2));
     }
-    
+
     #[test]
     fn test_saturating_mul() {
         assert_eq!(255, 16u8.mul_saturate(16u8));
