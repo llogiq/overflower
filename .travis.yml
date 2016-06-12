@@ -1,0 +1,5 @@
+language: rust
+rust: nightly
+sudo: false
+script:
+  - cargo test --debug && cargo test --release
