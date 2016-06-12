@@ -2,4 +2,4 @@ language: rust
 rust: nightly
 sudo: false
 script:
-  - cargo test --debug && cargo test --release
+  - cargo test && cargo test --release
