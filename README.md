@@ -1,5 +1,8 @@
 # overflower
 
+[![Build Status](https://travis-ci.org/llogiq/overflower.svg)](https://travis-ci.org/llogiq/overflower) 
+[![Current Version](https://img.shields.io/crates/v/overflower.svg)](https://crates.io/crates/overflower)
+
 This project contains a compiler plugin and supporting library to allow the 
 programmer to annotate their code to declare how integer overflows should be 
 dealt with. The annotations should look like this: `#![overflow(panic)]`, 
