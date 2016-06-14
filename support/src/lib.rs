@@ -295,7 +295,15 @@ saturate_signed!(i64,   std::i64::MIN,   std::i64::MAX);
 saturate_signed!(isize, std::isize::MIN, std::isize::MAX);
 
 macro_rules! panic_shifts {
-    (@$trait_name:ident, $trait_panic:ident, $fn_name:ident, $fn_panic:ident, $checked_fn:ident) => {
+    (@$trait_name:ident,
+      $trait_assign_name:ident,
+      $trait_panic:ident,
+      $trait_assign_panic:ident,
+      $fn_name:ident,
+      $fn_assign_name:ident,
+      $fn_panic:ident,
+      $fn_assign_panic:ident,
+      $checked_fn:ident) => {
         #[doc(hidden)]
         pub trait $trait_panic<RHS=usize> {
             type Output;
@@ -309,43 +317,60 @@ macro_rules! panic_shifts {
             }
         }
 
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, u8);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, u16);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, u32);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, u64);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, usize);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, i8);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, i16);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, i32);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, i64);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, isize);
+        pub trait $trait_assign_panic<RHS=usize> {
+            fn $fn_assign_panic(&mut self, rhs: RHS);
+        }
+
+        impl<T, R> $trait_assign_panic<R> for T where T: $trait_assign_name<R> {
+            default fn $fn_assign_panic(&mut self, rhs: R) {
+                $trait_assign_name::$fn_assign_name(self, rhs)
+            }
+        }
+
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, u8);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, u16);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, u32);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, u64);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, usize);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, i8);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, i16);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, i32);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, i64);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, isize);
     };
-    ($trait_panic:ident, $fn_panic:ident, $checked_fn:ident, $ty:ty) => {
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, u8);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, u16);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, u32);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, u64);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, usize);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, i8);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, i16);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, i32);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, i64);
-        panic_shifts!($trait_panic, $fn_panic, $checked_fn, $ty, isize);
+    ($trait_panic:ident, $trait_assign_panic:ident, $fn_panic:ident, $fn_assign_panic:ident, $checked_fn:ident, $ty:ty) => {
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, u8);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, u16);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, u32);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, u64);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, usize);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, i8);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, i16);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, i32);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, i64);
+        panic_shifts!($trait_panic, $trait_assign_panic, $fn_panic, $fn_assign_panic, $checked_fn, $ty, isize);
     };
-    ($trait_panic:ident, $fn_panic:ident, $checked_fn:ident, $ty:ty, $rty:ty) => {
+    ($trait_panic:ident, $trait_assign_panic:ident, $fn_panic:ident, $fn_assign_panic:ident, $checked_fn:ident, $ty:ty, $rty:ty) => {
         impl $trait_panic<$rty> for $ty {
             fn $fn_panic(self, rhs: $rty) -> Self::Output {
                 self.$checked_fn(rhs as u32).expect("Arithmetic overflow")
             }
         }
+
+        impl $trait_assign_panic<$rty> for $ty {
+            fn $fn_assign_panic(&mut self, rhs: $rty) {
+                *self = self.$checked_fn(rhs as u32)
+                            .expect("Arithmetic overflow")
+            }
+        }
     }
 }
 
-panic_shifts!(@Shl, ShlPanic, shl, shl_panic, checked_shl);
-panic_shifts!(@Shr, ShrPanic, shr, shr_panic, checked_shr);
+panic_shifts!(@Shl, ShlAssign, ShlPanic, ShlAssignPanic, shl, shl_assign, shl_panic, shl_assign_panic, checked_shl);
+panic_shifts!(@Shr, ShrAssign, ShrPanic, ShrAssignPanic, shr, shr_assign, shr_panic, shr_assign_panic, checked_shr);
 
 macro_rules! wrap_shifts {
-    (@$trait_name:ident, $trait_wrap:ident, $fn_name:ident, $fn_wrap:ident, $wrapping_fn:ident) => {
+    (@$trait_name:ident, $trait_assign_name:ident, $trait_wrap:ident, $trait_assign_wrap:ident, $fn_name:ident, $fn_assign_name:ident, $fn_wrap:ident, $fn_assign_wrap:ident, $wrapping_fn:ident) => {
         #[doc(hidden)]
         pub trait $trait_wrap<RHS=usize> {
             type Output;
@@ -359,40 +384,57 @@ macro_rules! wrap_shifts {
             }
         }
 
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, u8);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, u16);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, u32);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, u64);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, usize);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, i8);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, i16);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, i32);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, i64);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, isize);
+        pub trait $trait_assign_wrap<RHS=usize> {
+            fn $fn_assign_wrap(&mut self, rhs: RHS);
+        }
+
+        impl<T, R> $trait_assign_wrap<R> for T where T: $trait_assign_name<R> {
+            default fn $fn_assign_wrap(&mut self, rhs: R) {
+                $trait_assign_name::$fn_assign_name(self, rhs)
+            }
+        }
+
+
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, u8);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, u16);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, u32);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, u64);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, usize);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, i8);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, i16);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, i32);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, i64);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, isize);
     };
-    ($trait_wrap:ident, $fn_wrap:ident, $wrapping_fn:ident, $ty:ty) => {
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, u8);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, u16);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, u32);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, u64);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, usize);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, i8);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, i16);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, i32);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, i64);
-        wrap_shifts!($trait_wrap, $fn_wrap, $wrapping_fn, $ty, isize);
+    ($trait_wrap:ident, $trait_assign_wrap:ident, $fn_wrap:ident, $fn_assign_wrap:ident, $wrapping_fn:ident, $ty:ty) => {
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, u8);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, u16);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, u32);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, u64);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, usize);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, i8);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, i16);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, i32);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, i64);
+        wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, $ty, isize);
     };
-    ($trait_wrap:ident, $fn_wrap:ident, $wrapping_fn:ident, $ty:ty, $rty:ty) => {
+    ($trait_wrap:ident, $trait_assign_wrap:ident, $fn_wrap:ident, $fn_assign_wrap:ident, $wrapping_fn:ident, $ty:ty, $rty:ty) => {
         impl $trait_wrap<$rty> for $ty {
             fn $fn_wrap(self, rhs: $rty) -> Self::Output {
                 self.$wrapping_fn(rhs as u32)
             }
         }
+
+        impl $trait_assign_wrap<$rty> for $ty {
+            fn $fn_assign_wrap(&mut self, rhs: $rty) {
+                *self = self.$wrapping_fn(rhs as u32)
+            }
+        }
     }
 }
 
-wrap_shifts!(@Shl, ShlWrap, shl, shl_wrap, wrapping_shl);
-wrap_shifts!(@Shr, ShrWrap, shr, shr_wrap, wrapping_shr);
+wrap_shifts!(@Shl, ShlAssign, ShlWrap, ShlWrapAssign, shl, shl_assign, shl_wrap, shl_assign_wrap, wrapping_shl);
+wrap_shifts!(@Shr, ShrAssign, ShrWrap, ShrWrapAssign, shr, shr_assign, shr_wrap, shr_assign_wrap, wrapping_shr);
 
 //TODO: saturate_shifts!
 
