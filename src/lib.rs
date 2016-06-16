@@ -5,18 +5,19 @@ extern crate syntax;
 
 use std::fmt::{self, Display, Formatter};
 
-use rustc_plugin::registry::Registry; 
+use rustc_plugin::registry::Registry;
 use syntax::codemap::{DUMMY_SP, Span, Spanned};
-use syntax::ast::{BinOpKind, Expr, ExprKind, Item, ItemKind, Mac, MetaItem, MetaItemKind, UnOp};
+use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Mac, 
+                  MetaItem, MetaItemKind, Stmt, StmtKind, UnOp};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
-use syntax::ext::expand::{expand_expr, expand_item};
+use syntax::ext::expand::{expand_block, expand_expr, expand_item};
 use syntax::fold::{self, Folder};
 use syntax::parse::token;
 use syntax::ptr::P;
 use syntax::util::small_vector::SmallVector;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 enum Mode {
     Wrap,
     Panic,
@@ -35,9 +36,24 @@ impl Display for Mode {
     }
 }
 
+fn get_trait_name(mode: Mode, method: &str) -> String {
+    let mut me = method.chars();
+    let mo = match mode {
+            Mode::Wrap => "Wrap",
+            Mode::Panic => "Panic",
+            Mode::Saturate => "Saturate",
+            Mode::DontCare => "Default"
+    };
+    me.next().unwrap().to_uppercase().chain(me).chain(mo.chars()).collect()
+}
+
 struct Overflower<'a, 'cx: 'a> {
     mode: Mode,
     cx: &'a mut ExtCtxt<'cx>,
+}
+
+fn is_stmt_macro(stmt: &Stmt) -> bool {
+    if let StmtKind::Mac(..) = stmt.node { true } else { false }
 }
 
 impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
@@ -45,14 +61,24 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
         if let ItemKind::Mac(_) = item.node {
             let expanded = expand_item(item, &mut self.cx.expander());
             expanded.into_iter()
-                    .flat_map(|i| fold::noop_fold_item(i, self).into_iter())
+                    .flat_map(|i| self.fold_item(i).into_iter())
                     .collect()
         } else {
             fold::noop_fold_item(item, self)
         }
     }
-    
+
+    fn fold_block(&mut self, block: P<Block>) -> P<Block> {
+        if block.stmts.iter().any(is_stmt_macro) {
+            let expanded = expand_block(block, &mut self.cx.expander());
+            fold::noop_fold_block(expanded, self)
+        } else {
+            fold::noop_fold_block(block, self)
+        }
+    }
+
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
+        self.cx.span_warn(expr.span, &format!("fold {:?}", &expr));
         if self.mode == Mode::DontCare { return expr; }
         if let ExprKind::Mac(_) = expr.node {
             let expanded = expand_expr(expr.unwrap(), &mut self.cx.expander());
@@ -60,64 +86,67 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
         }
         match expr.unwrap() {
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Add, .. }, l, r), .. } => {
-                tag_method(self, "add", l, vec![r])
+                tag_method(self, "add", vec![l, r])
             }
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Sub, .. }, l, r), .. } => {
-                tag_method(self, "sub", l, vec![r])
+                tag_method(self, "sub", vec![l, r])
             }
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Mul, .. }, l, r), .. } => {
-                tag_method(self, "mul", l, vec![r])
+                tag_method(self, "mul", vec![l, r])
             }
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Div, .. }, l, r), .. } => {
-                tag_method(self, "div", l, vec![r])
+                tag_method(self, "div", vec![l, r])
             }
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Rem, .. }, l, r), .. } => {
-                tag_method(self, "rem", l, vec![r])
+                tag_method(self, "rem", vec![l, r])
             }
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Shl, .. }, l, r), .. } => {
-                tag_method(self, "shl", l, vec![r])
+                tag_method(self, "shl", vec![l, r])
             }
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Shr, .. }, l, r), .. } => {
-                tag_method(self, "shr", l, vec![r])
+                tag_method(self, "shr", vec![l, r])
             }
             Expr { node: ExprKind::Unary(UnOp::Neg, arg), .. } => {
-                tag_method(self, "neg", arg, vec![])
+                tag_method(self, "neg", vec![arg])
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Add, .. }, l, r), .. } => {
-                tag_method(self, "add_assign", l, vec![r])
+                tag_method(self, "add_assign", vec![l, r])
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Sub, .. }, l, r), .. } => {
-                tag_method(self, "sub_assign", l, vec![r])
+                tag_method(self, "sub_assign", vec![l, r])
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Mul, .. }, l, r), .. } => {
-                tag_method(self, "mul_assign", l, vec![r])
+                tag_method(self, "mul_assign", vec![l, r])
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Div, .. }, l, r), .. } => {
-                tag_method(self, "div_assign", l, vec![r])
+                tag_method(self, "div_assign", vec![l, r])
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Rem, .. }, l, r), .. } => {
-                tag_method(self, "rem_assign", l, vec![r])
+                tag_method(self, "rem_assign", vec![l, r])
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shl, .. }, l, r), .. } => {
-                tag_method(self, "shl_assign", l, vec![r])
+                tag_method(self, "shl_assign", vec![l, r])
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shr, .. }, l, r), .. } => {
-                tag_method(self, "shr_assign", l, vec![r])
+                tag_method(self, "shr_assign", vec![l, r])
             }
             e => P(fold::noop_fold_expr(e, self)),
         }
     }
-    
+
     fn fold_mac(&mut self, mac: Mac) -> Mac {
-        fold::noop_fold_mac(mac, self)
-    }    
+        mac
+    }
 }
 
-fn tag_method(o: &mut Overflower, name: &str, receiver: P<Expr>, args: Vec<P<Expr>>) -> P<Expr> {
-    let rec = o.fold_expr(receiver);
+fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>) -> P<Expr> {
+    let crate_name = o.cx.ident_of("overflower_support");
+    let trait_name = o.cx.ident_of(&get_trait_name(o.mode, name));
     let fn_name = o.cx.ident_of(&format!("{}_{}", name, o.mode));
-    let args_expanded = args.into_iter().map(|e| o.fold_expr(e)).collect();
-    o.cx.expr_method_call(DUMMY_SP, rec, fn_name, args_expanded)
+    let path = o.cx.path(DUMMY_SP, vec![crate_name, trait_name, fn_name]);
+    let epath = o.cx.expr_path(path);
+    let args_expanded = o.fold_exprs(args);
+    o.cx.expr_call(DUMMY_SP, epath, args_expanded)
 }
 
 fn get_mode(mi: &MetaItem) -> Result<Mode, (Span, &'static str)> {
