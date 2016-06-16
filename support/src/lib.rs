@@ -89,11 +89,11 @@ macro_rules! panic_assign_biself {
     }
 }
 
-panic_assign_biself!(AddAssign, AddPanicAssign, add_assign, add_assign_panic, checked_add);
-panic_assign_biself!(SubAssign, SubPanicAssign, sub_assign, sub_assign_panic, checked_sub);
-panic_assign_biself!(MulAssign, MulPanicAssign, mul_assign, mul_assign_panic, checked_mul);
-panic_assign_biself!(DivAssign, DivPanicAssign, div_assign, div_assign_panic, checked_div);
-panic_assign_biself!(RemAssign, RemPanicAssign, rem_assign, rem_assign_panic, checked_rem);
+panic_assign_biself!(AddAssign, AddAssignPanic, add_assign, add_assign_panic, checked_add);
+panic_assign_biself!(SubAssign, SubAssignPanic, sub_assign, sub_assign_panic, checked_sub);
+panic_assign_biself!(MulAssign, MulAssignPanic, mul_assign, mul_assign_panic, checked_mul);
+panic_assign_biself!(DivAssign, DivAssignPanic, div_assign, div_assign_panic, checked_div);
+panic_assign_biself!(RemAssign, RemAssignPanic, rem_assign, rem_assign_panic, checked_rem);
 
 macro_rules! wrap_biself {
     ($trait_name:ident, $trait_wrap:ident, $fn_name:ident, $fn_wrap:ident, $wrapped_fn:ident) => {
@@ -169,11 +169,11 @@ macro_rules! wrap_assign_biself {
     }
 }
 
-wrap_assign_biself!(AddAssign, AddWrapAssign, add_assign, add_assign_wrap, wrapping_add);
-wrap_assign_biself!(SubAssign, SubWrapAssign, sub_assign, sub_assign_wrap, wrapping_sub);
-wrap_assign_biself!(MulAssign, MulWrapAssign, mul_assign, mul_assign_wrap, wrapping_mul);
-wrap_assign_biself!(DivAssign, DivWrapAssign, div_assign, div_assign_wrap, wrapping_div);
-wrap_assign_biself!(RemAssign, RemWrapAssign, rem_assign, rem_assign_wrap, wrapping_rem);
+wrap_assign_biself!(AddAssign, AddAssignWrap, add_assign, add_assign_wrap, wrapping_add);
+wrap_assign_biself!(SubAssign, SubAssignWrap, sub_assign, sub_assign_wrap, wrapping_sub);
+wrap_assign_biself!(MulAssign, MulAssignWrap, mul_assign, mul_assign_wrap, wrapping_mul);
+wrap_assign_biself!(DivAssign, DivAssignWrap, div_assign, div_assign_wrap, wrapping_div);
+wrap_assign_biself!(RemAssign, RemAssignWrap, rem_assign, rem_assign_wrap, wrapping_rem);
 
 macro_rules! saturate_biself {
     ($trait_name:ident, $trait_saturate:ident, $fn_name:ident, $fn_saturate:ident, $saturated_fn:ident) => {
@@ -433,8 +433,8 @@ macro_rules! wrap_shifts {
     }
 }
 
-wrap_shifts!(@Shl, ShlAssign, ShlWrap, ShlWrapAssign, shl, shl_assign, shl_wrap, shl_assign_wrap, wrapping_shl);
-wrap_shifts!(@Shr, ShrAssign, ShrWrap, ShrWrapAssign, shr, shr_assign, shr_wrap, shr_assign_wrap, wrapping_shr);
+wrap_shifts!(@Shl, ShlAssign, ShlWrap, ShlAssignWrap, shl, shl_assign, shl_wrap, shl_assign_wrap, wrapping_shl);
+wrap_shifts!(@Shr, ShrAssign, ShrWrap, ShrAssignWrap, shr, shr_assign, shr_wrap, shr_assign_wrap, wrapping_shr);
 
 pub trait ShrSaturate<RHS=usize> {
     type Output;
@@ -459,7 +459,7 @@ pub trait ShlSaturate<RHS=usize> {
     fn shl_saturate(self, rhs: RHS) -> Self::Output;
 }
 
-pub trait ShlSaturateAssign<RHS=usize> {
+pub trait ShlAssignSaturate<RHS=usize> {
     fn shl_assign_saturate(&mut self, rhs: RHS);
 }
 
@@ -468,7 +468,7 @@ impl<R, T: Shl<R>> ShlSaturate<R> for T {
     default fn shl_saturate(self, rhs: R) -> Self::Output { self << rhs }
 }
 
-impl<R, T: ShlAssign<R>> ShlSaturateAssign<R> for T {
+impl<R, T: ShlAssign<R>> ShlAssignSaturate<R> for T {
     default fn shl_assign_saturate(&mut self, rhs: R) { *self <<= rhs; }    
 }
 
@@ -492,7 +492,7 @@ macro_rules! saturate_shl_unsigned {
             }
         }
         
-        impl ShlSaturateAssign<$rty> for $ty {
+        impl ShlAssignSaturate<$rty> for $ty {
             fn shl_assign_saturate(&mut self, rhs: $rty) {
                 *self = self.checked_shl(rhs as u32).unwrap_or($max)
             }
@@ -506,13 +506,39 @@ saturate_shl_unsigned!(u32, std::u32::MAX);
 saturate_shl_unsigned!(u64, std::u64::MAX);
 saturate_shl_unsigned!(usize, std::usize::MAX);
 
-//saturate_shl_signed!(i8);
-//saturate_shl_signed!(i16);
-//saturate_shl_signed!(i32);
-//saturate_shl_signed!(i64);
-//saturate_shl_signed!(isize);
+macro_rules! saturate_shl_signed {
+    ($ty:ty, $max:expr, $min:expr) => {
+        saturate_shl_signed!($ty, $max, $min, u8);
+        saturate_shl_signed!($ty, $max, $min, u16);
+        saturate_shl_signed!($ty, $max, $min, u32);
+        saturate_shl_signed!($ty, $max, $min, u64);
+        saturate_shl_signed!($ty, $max, $min, usize);
+        saturate_shl_signed!($ty, $max, $min, i8);
+        saturate_shl_signed!($ty, $max, $min, i16);
+        saturate_shl_signed!($ty, $max, $min, i32);
+        saturate_shl_signed!($ty, $max, $min, i64);
+        saturate_shl_signed!($ty, $max, $min, isize);
+    };
+    ($ty:ty, $max:expr, $min:expr, $rty:ty) => {
+        impl ShlSaturate<$rty> for $ty {
+            fn shl_saturate(self, rhs: $rty) -> Self::Output {
+                self.checked_shl(rhs as u32).unwrap_or(if self < 0 { $min } else { $max })
+            }
+        }
+        
+        impl ShlAssignSaturate<$rty> for $ty {
+            fn shl_assign_saturate(&mut self, rhs: $rty) {
+                *self = self.checked_shl(rhs as u32).unwrap_or(if *self < 0 { $min } else { $max })
+            }
+        }
+    };
+}
 
-//TODO: saturate_shl_assign!
+saturate_shl_signed!(i8, std::i8::MAX, std::i8::MIN);
+saturate_shl_signed!(i16, std::i16::MAX, std::i16::MIN);
+saturate_shl_signed!(i32, std::i32::MAX, std::i32::MIN);
+saturate_shl_signed!(i64, std::i64::MAX, std::i64::MIN);
+saturate_shl_signed!(isize, std::isize::MAX, std::isize::MIN);
 
 #[doc(hidden)]
 pub trait NegPanic {
