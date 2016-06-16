@@ -436,7 +436,83 @@ macro_rules! wrap_shifts {
 wrap_shifts!(@Shl, ShlAssign, ShlWrap, ShlWrapAssign, shl, shl_assign, shl_wrap, shl_assign_wrap, wrapping_shl);
 wrap_shifts!(@Shr, ShrAssign, ShrWrap, ShrWrapAssign, shr, shr_assign, shr_wrap, shr_assign_wrap, wrapping_shr);
 
-//TODO: saturate_shifts!
+pub trait ShrSaturate<RHS=usize> {
+    type Output;
+    fn shr_saturate(self, rhs: RHS) -> Self::Output;
+}
+
+pub trait ShrSaturateAssign<RHS=usize> {
+    fn shr_assign_saturate(&mut self, rhs: RHS);
+}
+
+impl<R, T: Shr<R>> ShrSaturate<R> for T {
+    type Output = <T as Shr<R>>::Output;
+    fn shr_saturate(self, rhs: R) -> Self::Output { self >> rhs }
+}
+
+impl<R, T: ShrAssign<R>> ShrSaturateAssign<R> for T {
+    fn shr_assign_saturate(&mut self, rhs: R) { *self >>= rhs; }
+}
+
+pub trait ShlSaturate<RHS=usize> {
+    type Output;
+    fn shl_saturate(self, rhs: RHS) -> Self::Output;
+}
+
+pub trait ShlSaturateAssign<RHS=usize> {
+    fn shl_assign_saturate(&mut self, rhs: RHS);
+}
+
+impl<R, T: Shl<R>> ShlSaturate<R> for T {
+    type Output = <T as Shl<R>>::Output;
+    default fn shl_saturate(self, rhs: R) -> Self::Output { self << rhs }
+}
+
+impl<R, T: ShlAssign<R>> ShlSaturateAssign<R> for T {
+    default fn shl_assign_saturate(&mut self, rhs: R) { *self <<= rhs; }    
+}
+
+macro_rules! saturate_shl_unsigned {
+    ($ty:ty, $max:expr) => {
+        saturate_shl_unsigned!($ty, $max, u8);
+        saturate_shl_unsigned!($ty, $max, u16);
+        saturate_shl_unsigned!($ty, $max, u32);
+        saturate_shl_unsigned!($ty, $max, u64);
+        saturate_shl_unsigned!($ty, $max, usize);
+        saturate_shl_unsigned!($ty, $max, i8);
+        saturate_shl_unsigned!($ty, $max, i16);
+        saturate_shl_unsigned!($ty, $max, i32);
+        saturate_shl_unsigned!($ty, $max, i64);
+        saturate_shl_unsigned!($ty, $max, isize);
+    };
+    ($ty:ty, $max:expr, $rty:ty) => {
+        impl ShlSaturate<$rty> for $ty {
+            fn shl_saturate(self, rhs: $rty) -> Self::Output {
+                self.checked_shl(rhs as u32).unwrap_or($max)
+            }
+        }
+        
+        impl ShlSaturateAssign<$rty> for $ty {
+            fn shl_assign_saturate(&mut self, rhs: $rty) {
+                *self = self.checked_shl(rhs as u32).unwrap_or($max)
+            }
+        }
+    };
+}
+
+saturate_shl_unsigned!(u8, std::u8::MAX);
+saturate_shl_unsigned!(u16, std::u16::MAX);
+saturate_shl_unsigned!(u32, std::u32::MAX);
+saturate_shl_unsigned!(u64, std::u64::MAX);
+saturate_shl_unsigned!(usize, std::usize::MAX);
+
+//saturate_shl_signed!(i8);
+//saturate_shl_signed!(i16);
+//saturate_shl_signed!(i32);
+//saturate_shl_signed!(i64);
+//saturate_shl_signed!(isize);
+
+//TODO: saturate_shl_assign!
 
 #[doc(hidden)]
 pub trait NegPanic {
