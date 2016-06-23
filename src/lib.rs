@@ -8,7 +8,8 @@ use std::fmt::{self, Display, Formatter};
 use rustc_plugin::registry::Registry;
 use syntax::codemap::{DUMMY_SP, Span, Spanned};
 use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Mac, 
-                  MetaItem, MetaItemKind, Stmt, StmtKind, UnOp};
+                  MetaItem, MetaItemKind, Path, PathSegment, Stmt, StmtKind, 
+                  UnOp};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
 use syntax::ext::expand::{expand_block, expand_expr, expand_item};
@@ -78,13 +79,23 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
     }
 
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
-        self.cx.span_warn(expr.span, &format!("fold {:?}", &expr));
         if self.mode == Mode::DontCare { return expr; }
-        if let ExprKind::Mac(_) = expr.node {
-            let expanded = expand_expr(expr.unwrap(), &mut self.cx.expander());
-            return self.fold_expr(expanded);
-        }
         match expr.unwrap() {
+            e@Expr { node: ExprKind::Mac(_), .. } => {
+                let expanded = expand_expr(e, &mut self.cx.expander());
+                self.fold_expr(expanded)
+            }
+            Expr { id, node: ExprKind::Call(path, args), span, attrs } => {
+                if args.len() == 1 {
+                    if let ExprKind::Path(_, ref p) = path.node {
+                        if is_abs(p) {
+                            return tag_method(self, "abs", args);
+                        }
+                    }
+                }
+                P(fold::noop_fold_expr(Expr { id: id, node: ExprKind::Call(path, args), 
+                        span: span, attrs: attrs }, self))
+            }
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Add, .. }, l, r), .. } => {
                 tag_method(self, "add", vec![l, r])
             }
@@ -147,6 +158,17 @@ fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>) -> P<Expr> {
     let epath = o.cx.expr_path(path);
     let args_expanded = o.fold_exprs(args);
     o.cx.expr_call(DUMMY_SP, epath, args_expanded)
+}
+
+fn is_abs(p: &Path) -> bool {
+    fn any_of(s: &PathSegment, options: &[&str]) -> bool {
+        let name = s.identifier.name.as_str();
+        options.iter().any(|o| name == *o)
+    }
+    let segs = &p.segments;
+    p.global && segs.len() == 3 && any_of(&segs[0], &["std", "core"]) &&
+        any_of(&segs[1], &["u8", "i8", "u16", "i16", "u32", "i32", "u64", "i64",
+            "usize", "isize"]) && any_of(&segs[2], &["abs"])
 }
 
 fn get_mode(mi: &MetaItem) -> Result<Mode, (Span, &'static str)> {

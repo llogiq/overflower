@@ -618,6 +618,74 @@ neg_saturate!(i32, std::i32::MIN, std::i32::MAX);
 neg_saturate!(i64, std::i64::MIN, std::i64::MAX);
 neg_saturate!(isize, std::isize::MIN, std::isize::MAX);
 
+pub trait AbsPanic {
+    fn abs_panic(self) -> Self;
+}
+
+pub trait AbsWrap {
+    fn abs_wrap(self) -> Self;
+}
+
+pub trait AbsSaturate {
+    fn abs_saturate(self) -> Self;
+}
+
+macro_rules! abs_unsigned {
+    ($ty:ty) => {
+        impl AbsPanic for $ty {
+            fn abs_panic(self) -> Self {
+                self
+            }
+        }
+        
+        impl AbsWrap for $ty {
+            fn abs_wrap(self) -> Self {
+                self
+            }
+        }
+        
+        impl AbsSaturate for $ty {
+            fn abs_saturate(self) -> Self {
+                self
+            }
+        }
+    };
+}
+
+abs_unsigned!(u8);
+abs_unsigned!(u16);
+abs_unsigned!(u32);
+abs_unsigned!(u64);
+abs_unsigned!(usize);
+
+macro_rules! abs_signed {
+    ($ty:ty) => {
+        impl AbsPanic for $ty {
+            fn abs_panic(self) -> Self {
+                if self < 0 { 0.sub_panic(self) } else { self }
+            }
+        }
+
+        impl AbsWrap for $ty {
+            fn abs_wrap(self) -> Self {
+                if self < 0 { 0.sub_wrap(self) } else { self }
+            }
+        }
+    
+        impl AbsSaturate for $ty {
+            fn abs_saturate(self) -> Self {
+                if self < 0 { 0.sub_saturate(self) } else { self }
+            }
+        }
+    };
+}
+
+abs_signed!(i8);
+abs_signed!(i16);
+abs_signed!(i32);
+abs_signed!(i64);
+abs_signed!(isize);    
+
 #[cfg(test)]
 mod test {
     use super::{AddPanic, SubWrap, MulSaturate};
