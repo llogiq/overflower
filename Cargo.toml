@@ -1,6 +1,6 @@
 [package]
 name = "overflower"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/llogiq/overflower"
@@ -13,4 +13,4 @@ crate-type = [ "dylib" ]
 plugin = true
 
 [dependencies]
-overflower_support = { version = "0.1.1", path = "support" }
+overflower_support = { version = "0.1.2", path = "support" }
