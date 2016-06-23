@@ -1,5 +1,6 @@
 language: rust
 rust: nightly
+cache: cargo
 sudo: false
 script:
   - cargo test && cargo test --release
