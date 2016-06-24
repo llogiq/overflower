@@ -519,50 +519,72 @@ const USIZE_BITS: usize = 16;
 #[cfg(target_pointer_width = "64")]
 const USIZE_BITS: usize = 64;
 
-const U8_BITS: usize = 8;
-const U16_BITS: usize = 16;
-const U32_BITS: usize = 32;
-const U64_BITS: usize = 64;
-
-saturate_shl_unsigned!(u8, std::u8::MAX, U8_BITS);
-saturate_shl_unsigned!(u16, std::u16::MAX, U16_BITS);
-saturate_shl_unsigned!(u32, std::u32::MAX, U32_BITS);
-saturate_shl_unsigned!(u64, std::u64::MAX, U64_BITS);
+saturate_shl_unsigned!(u8, std::u8::MAX, 8);
+saturate_shl_unsigned!(u16, std::u16::MAX, 16);
+saturate_shl_unsigned!(u32, std::u32::MAX, 32);
+saturate_shl_unsigned!(u64, std::u64::MAX, 64);
 saturate_shl_unsigned!(usize, std::usize::MAX, USIZE_BITS);
 
 macro_rules! saturate_shl_signed {
-    ($ty:ty, $max:expr, $min:expr) => {
-        saturate_shl_signed!($ty, $max, $min, u8);
-        saturate_shl_signed!($ty, $max, $min, u16);
-        saturate_shl_signed!($ty, $max, $min, u32);
-        saturate_shl_signed!($ty, $max, $min, u64);
-        saturate_shl_signed!($ty, $max, $min, usize);
-        saturate_shl_signed!($ty, $max, $min, i8);
-        saturate_shl_signed!($ty, $max, $min, i16);
-        saturate_shl_signed!($ty, $max, $min, i32);
-        saturate_shl_signed!($ty, $max, $min, i64);
-        saturate_shl_signed!($ty, $max, $min, isize);
+    ($ty:ty, $max:expr, $min:expr, $bits:expr) => {
+        saturate_shl_signed!($ty, $max, $min, $bits, u8);
+        saturate_shl_signed!($ty, $max, $min, $bits, u16);
+        saturate_shl_signed!($ty, $max, $min, $bits, u32);
+        saturate_shl_signed!($ty, $max, $min, $bits, u64);
+        saturate_shl_signed!($ty, $max, $min, $bits, usize);
+        saturate_shl_signed!($ty, $max, $min, $bits, i8);
+        saturate_shl_signed!($ty, $max, $min, $bits, i16);
+        saturate_shl_signed!($ty, $max, $min, $bits, i32);
+        saturate_shl_signed!($ty, $max, $min, $bits, i64);
+        saturate_shl_signed!($ty, $max, $min, $bits, isize);
     };
-    ($ty:ty, $max:expr, $min:expr, $rty:ty) => {
+    ($ty:ty, $max:expr, $min:expr, $bits:expr, $rty:ty) => {
         impl ShlSaturate<$rty> for $ty {
             fn shl_saturate(self, rhs: $rty) -> Self::Output {
-                self.checked_shl(rhs as u32).unwrap_or(if self < 0 { $min } else { $max })
+                match self.cmp(&0) {
+                    Ordering::Equal => 0,
+                    Ordering::Greater => {
+                        if rhs as usize >= $bits || ($max >> rhs) < self { $max } else { self << rhs }
+                    }
+                    Ordering::Less => {
+                        if rhs as usize >= $bits || ($min >> rhs) > self { $min } else { self << rhs }
+                    }
+                }
             }
         }
         
         impl ShlAssignSaturate<$rty> for $ty {
             fn shl_assign_saturate(&mut self, rhs: $rty) {
-                *self = self.checked_shl(rhs as u32).unwrap_or(if *self < 0 { $min } else { $max })
+                let s = *self;
+                *self = match s.cmp(&0) {
+                    Ordering::Equal => 0,
+                    Ordering::Greater => {
+                        if rhs as usize >= $bits || ($max >> rhs) < s { $max } else { s << rhs }
+                    }
+                    Ordering::Less => {
+                        if rhs as usize >= $bits || ($min >> rhs) > s { $min } else { s << rhs }
+                    }
+                }
             }
         }
     };
 }
 
-saturate_shl_signed!(i8, std::i8::MAX, std::i8::MIN);
-saturate_shl_signed!(i16, std::i16::MAX, std::i16::MIN);
-saturate_shl_signed!(i32, std::i32::MAX, std::i32::MIN);
-saturate_shl_signed!(i64, std::i64::MAX, std::i64::MIN);
-saturate_shl_signed!(isize, std::isize::MAX, std::isize::MIN);
+#[cfg(target_pointer_width = "16")]
+const ISIZE_BITS: usize = 15;
+
+#[cfg(target_pointer_width = "32")]
+const ISIZE_BITS: usize = 31;
+
+#[cfg(target_pointer_width = "64")]
+const ISIZE_BITS: usize = 63;
+
+
+saturate_shl_signed!(i8, std::i8::MAX, std::i8::MIN, 7);
+saturate_shl_signed!(i16, std::i16::MAX, std::i16::MIN, 15);
+saturate_shl_signed!(i32, std::i32::MAX, std::i32::MIN, 31);
+saturate_shl_signed!(i64, std::i64::MAX, std::i64::MIN, 64);
+saturate_shl_signed!(isize, std::isize::MAX, std::isize::MIN, ISIZE_BITS);
 
 #[doc(hidden)]
 pub trait NegPanic {
