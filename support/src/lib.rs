@@ -473,38 +473,62 @@ impl<R, T: ShlAssign<R>> ShlAssignSaturate<R> for T {
 }
 
 macro_rules! saturate_shl_unsigned {
-    ($ty:ty, $max:expr) => {
-        saturate_shl_unsigned!($ty, $max, u8);
-        saturate_shl_unsigned!($ty, $max, u16);
-        saturate_shl_unsigned!($ty, $max, u32);
-        saturate_shl_unsigned!($ty, $max, u64);
-        saturate_shl_unsigned!($ty, $max, usize);
-        saturate_shl_unsigned!($ty, $max, i8);
-        saturate_shl_unsigned!($ty, $max, i16);
-        saturate_shl_unsigned!($ty, $max, i32);
-        saturate_shl_unsigned!($ty, $max, i64);
-        saturate_shl_unsigned!($ty, $max, isize);
+    ($ty:ty, $max:expr, $bits:expr) => {
+        saturate_shl_unsigned!($ty, $max, $bits, u8);
+        saturate_shl_unsigned!($ty, $max, $bits, u16);
+        saturate_shl_unsigned!($ty, $max, $bits, u32);
+        saturate_shl_unsigned!($ty, $max, $bits, u64);
+        saturate_shl_unsigned!($ty, $max, $bits, usize);
+        saturate_shl_unsigned!($ty, $max, $bits, i8);
+        saturate_shl_unsigned!($ty, $max, $bits, i16);
+        saturate_shl_unsigned!($ty, $max, $bits, i32);
+        saturate_shl_unsigned!($ty, $max, $bits, i64);
+        saturate_shl_unsigned!($ty, $max, $bits, isize);
     };
-    ($ty:ty, $max:expr, $rty:ty) => {
+    ($ty:ty, $max:expr, $bits:expr, $rty:ty) => {
         impl ShlSaturate<$rty> for $ty {
             fn shl_saturate(self, rhs: $rty) -> Self::Output {
-                self.checked_shl(rhs as u32).unwrap_or($max)
+                if self == 0 { return 0; }
+                if rhs as usize >= $bits || ((!0) >> rhs) < self {
+                    $max
+                } else {
+                    self << rhs
+                }
             }
         }
         
         impl ShlAssignSaturate<$rty> for $ty {
             fn shl_assign_saturate(&mut self, rhs: $rty) {
-                *self = self.checked_shl(rhs as u32).unwrap_or($max)
+                if *self == 0 { return; }
+                *self = if rhs as usize  >= $bits || (!0) >> rhs < *self { 
+                    $max
+                } else {
+                    *self << rhs
+                }
             }
         }
     };
 }
 
-saturate_shl_unsigned!(u8, std::u8::MAX);
-saturate_shl_unsigned!(u16, std::u16::MAX);
-saturate_shl_unsigned!(u32, std::u32::MAX);
-saturate_shl_unsigned!(u64, std::u64::MAX);
-saturate_shl_unsigned!(usize, std::usize::MAX);
+#[cfg(target_pointer_width = "16")]
+const USIZE_BITS: usize = 16;
+
+#[cfg(target_pointer_width = "32")]
+const USIZE_BITS: usize = 16;
+
+#[cfg(target_pointer_width = "64")]
+const USIZE_BITS: usize = 64;
+
+const U8_BITS: usize = 8;
+const U16_BITS: usize = 16;
+const U32_BITS: usize = 32;
+const U64_BITS: usize = 64;
+
+saturate_shl_unsigned!(u8, std::u8::MAX, U8_BITS);
+saturate_shl_unsigned!(u16, std::u16::MAX, U16_BITS);
+saturate_shl_unsigned!(u32, std::u32::MAX, U32_BITS);
+saturate_shl_unsigned!(u64, std::u64::MAX, U64_BITS);
+saturate_shl_unsigned!(usize, std::usize::MAX, USIZE_BITS);
 
 macro_rules! saturate_shl_signed {
     ($ty:ty, $max:expr, $min:expr) => {
