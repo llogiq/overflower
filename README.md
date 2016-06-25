@@ -17,7 +17,7 @@ To use it, you need the following in your Cargo.toml:
 
 ```
 [dependencies]
-overflower = "0.1.1"
+overflower = "0.1.3"
 ```
 
 You may also make it an optional dependency (`overflower = { version = "0.1.1", 
