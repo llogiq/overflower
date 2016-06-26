@@ -15,7 +15,7 @@ unstable for now.
 
 To use it, you need the following in your Cargo.toml:
 
-```
+```toml
 [dependencies]
 overflower = "0.1.3"
 ```
@@ -25,7 +25,7 @@ optional = true }`).
 
 Next, in your crate root, you need to add:
 
-```
+```rust
 #![feature(plugin)]
 #![plugin(overflower)]
 
@@ -48,7 +48,7 @@ fn too_much_sunlight() {
 
 In case of an optional dependency, you'd add the following instead:
 
-```
+```rust
 #![cfg_attr(feature="overflower", feature(plugin))]
 #![cfg_attr(feature="overflower", plugin(overflower))]
 
