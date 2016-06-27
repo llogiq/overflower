@@ -6,7 +6,7 @@ extern crate syntax;
 use std::fmt::{self, Display, Formatter};
 
 use rustc_plugin::registry::Registry;
-use syntax::codemap::{DUMMY_SP, Span, Spanned};
+use syntax::codemap::{BytePos, Span, Spanned};
 use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Mac, 
                   MetaItem, MetaItemKind, Path, PathSegment, Stmt, StmtKind, 
                   UnOp};
@@ -87,59 +87,61 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
             }
             Expr { id, node: ExprKind::Call(path, args), span, attrs } => {
                 if args.len() == 1 {
+                    let pspan = path.span;
                     if let ExprKind::Path(_, ref p) = path.node {
                         if is_abs(p) {
-                            return tag_method(self, "abs", args);
+                            return tag_method(self, "abs", args, span, pspan);
                         }
                     }
                 }
                 P(fold::noop_fold_expr(Expr { id: id, node: ExprKind::Call(path, args), 
                         span: span, attrs: attrs }, self))
             }
-            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Add, .. }, l, r), .. } => {
-                tag_method(self, "add", vec![l, r])
+            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Add, span: op }, l, r), span, .. } => {
+                tag_method(self, "add", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Sub, .. }, l, r), .. } => {
-                tag_method(self, "sub", vec![l, r])
+            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Sub, span: op }, l, r), span, .. } => {
+                tag_method(self, "sub", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Mul, .. }, l, r), .. } => {
-                tag_method(self, "mul", vec![l, r])
+            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Mul, span: op }, l, r), span, .. } => {
+                tag_method(self, "mul", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Div, .. }, l, r), .. } => {
-                tag_method(self, "div", vec![l, r])
+            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Div, span: op }, l, r), span, .. } => {
+                tag_method(self, "div", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Rem, .. }, l, r), .. } => {
-                tag_method(self, "rem", vec![l, r])
+            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Rem, span: op }, l, r), span, .. } => {
+                tag_method(self, "rem", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Shl, .. }, l, r), .. } => {
-                tag_method(self, "shl", vec![l, r])
+            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Shl, span: op }, l, r), span, .. } => {
+                tag_method(self, "shl", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Shr, .. }, l, r), .. } => {
-                tag_method(self, "shr", vec![l, r])
+            Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Shr, span: op }, l, r), span, .. } => {
+                tag_method(self, "shr", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::Unary(UnOp::Neg, arg), .. } => {
-                tag_method(self, "neg", vec![arg])
+            Expr { node: ExprKind::Unary(UnOp::Neg, arg), span, .. } => {
+                // yes, this span handling is ugly, but we don't have op spans on unary minus
+                tag_method(self, "neg", vec![arg], span, Span { hi: span.lo + BytePos(1), ..span })
             }
-            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Add, .. }, l, r), .. } => {
-                tag_method(self, "add_assign", vec![l, r])
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Add, span: op }, l, r), span, .. } => {
+                tag_method(self, "add_assign", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Sub, .. }, l, r), .. } => {
-                tag_method(self, "sub_assign", vec![l, r])
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Sub, span: op }, l, r), span, .. } => {
+                tag_method(self, "sub_assign", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Mul, .. }, l, r), .. } => {
-                tag_method(self, "mul_assign", vec![l, r])
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Mul, span: op }, l, r), span, .. } => {
+                tag_method(self, "mul_assign", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Div, .. }, l, r), .. } => {
-                tag_method(self, "div_assign", vec![l, r])
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Div, span: op }, l, r), span, .. } => {
+                tag_method(self, "div_assign", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Rem, .. }, l, r), .. } => {
-                tag_method(self, "rem_assign", vec![l, r])
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Rem, span: op }, l, r), span, .. } => {
+                tag_method(self, "rem_assign", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shl, .. }, l, r), .. } => {
-                tag_method(self, "shl_assign", vec![l, r])
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shl, span: op }, l, r), span, .. } => {
+                tag_method(self, "shl_assign", vec![l, r], span, op)
             }
-            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shr, .. }, l, r), .. } => {
-                tag_method(self, "shr_assign", vec![l, r])
+            Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shr, span: op }, l, r), span, .. } => {
+                tag_method(self, "shr_assign", vec![l, r], span, op)
             }
             e => P(fold::noop_fold_expr(e, self)),
         }
@@ -150,14 +152,20 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
     }
 }
 
-fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>) -> P<Expr> {
+fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>, outer: Span, op: Span) -> P<Expr> {
     let crate_name = o.cx.ident_of("overflower_support");
     let trait_name = o.cx.ident_of(&get_trait_name(o.mode, name));
     let fn_name = o.cx.ident_of(&format!("{}_{}", name, o.mode));
-    let path = o.cx.path(DUMMY_SP, vec![crate_name, trait_name, fn_name]);
+    let pspan = marked(o, op);
+    let path = o.cx.path(pspan, vec![crate_name, trait_name, fn_name]);
     let epath = o.cx.expr_path(path);
     let args_expanded = o.fold_exprs(args);
-    o.cx.expr_call(DUMMY_SP, epath, args_expanded)
+    let span = marked(o, outer);
+    o.cx.expr_call(span, epath, args_expanded)
+}
+
+fn marked(o: &mut Overflower, span: Span) -> Span {
+    Span { expn_id: o.cx.backtrace(), ..span }
 }
 
 fn is_abs(p: &Path) -> bool {
