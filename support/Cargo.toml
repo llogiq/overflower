@@ -7,3 +7,5 @@ license = "Apache-2.0"
 repository = "https://github.com/llogiq/overflower"
 keywords = ["arithmetic", "overflow", "nightly"]
 
+[dev-dependencies]
+quickcheck = "^0.2"

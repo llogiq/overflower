@@ -2,5 +2,8 @@ language: rust
 rust: nightly
 cache: cargo
 sudo: false
-script:
-  - cargo test && cargo test --release
+script: |
+  pushd support
+  cargo test
+  popd
+  cargo test && cargo test --release

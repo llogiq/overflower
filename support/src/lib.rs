@@ -12,6 +12,7 @@
 //! Note: This needs a nightly compiler because it uses the specialization feature.
 
 #![feature(specialization)]
+
 use std::ops::*;
 use std::cmp::*;
 
@@ -366,7 +367,6 @@ macro_rules! panic_shifts {
     }
 }
 
-panic_shifts!(@Shl, ShlAssign, ShlPanic, ShlAssignPanic, shl, shl_assign, shl_panic, shl_assign_panic, checked_shl);
 panic_shifts!(@Shr, ShrAssign, ShrPanic, ShrAssignPanic, shr, shr_assign, shr_panic, shr_assign_panic, checked_shr);
 
 macro_rules! wrap_shifts {
@@ -393,7 +393,6 @@ macro_rules! wrap_shifts {
                 $trait_assign_name::$fn_assign_name(self, rhs)
             }
         }
-
 
         wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, u8);
         wrap_shifts!($trait_wrap, $trait_assign_wrap, $fn_wrap, $fn_assign_wrap, $wrapping_fn, u16);
@@ -469,7 +468,29 @@ impl<R, T: Shl<R>> ShlSaturate<R> for T {
 }
 
 impl<R, T: ShlAssign<R>> ShlAssignSaturate<R> for T {
-    default fn shl_assign_saturate(&mut self, rhs: R) { *self <<= rhs; }    
+    default fn shl_assign_saturate(&mut self, rhs: R) { *self <<= rhs; }
+}
+
+pub trait ShlPanic<RHS=usize> {
+    type Output;
+    fn shl_panic(self, rhs: RHS) -> Self::Output;
+}
+
+impl<T, R> ShlPanic<R> for T where T: Shl<R> {
+    type Output = <T as Shl<R>>::Output;
+    default fn shl_panic(self, rhs: R) -> Self::Output {
+        std::ops::Shl::shl(self, rhs)
+    }
+}
+
+pub trait ShlAssignPanic<RHS=usize> {
+    fn shl_assign_panic(&mut self, rhs: RHS);
+}
+
+impl<T, R> ShlAssignPanic<R> for T where T: ShlAssign<R> {
+    default fn shl_assign_panic(&mut self, rhs: R) {
+        ShlAssign::shl_assign(self, rhs)
+    }
 }
 
 macro_rules! saturate_shl_unsigned {
@@ -496,12 +517,33 @@ macro_rules! saturate_shl_unsigned {
                 }
             }
         }
-        
+
         impl ShlAssignSaturate<$rty> for $ty {
             fn shl_assign_saturate(&mut self, rhs: $rty) {
                 if *self == 0 { return; }
-                *self = if rhs as usize  >= $bits || (!0) >> rhs < *self { 
+                *self = if rhs as usize  >= $bits || (!0) >> rhs < *self {
                     $max
+                } else {
+                    *self << rhs
+                }
+            }
+        }
+
+        impl ShlPanic<$rty> for $ty {
+            fn shl_panic(self, rhs: $rty) -> Self::Output {
+                if self == 0 { return 0; }
+                if rhs as usize >= $bits || ((!0) >> rhs) < self {
+                    panic!("Arithmetic overflow");
+                }
+                self << rhs
+            }
+        }
+
+        impl ShlAssignPanic<$rty> for $ty {
+            fn shl_assign_panic(&mut self, rhs: $rty) {
+                if *self == 0 { return; }
+                *self = if rhs as usize  >= $bits || (!0) >> rhs < *self {
+                    panic!("Arithmetic overflow");
                 } else {
                     *self << rhs
                 }
@@ -552,7 +594,7 @@ macro_rules! saturate_shl_signed {
                 }
             }
         }
-        
+
         impl ShlAssignSaturate<$rty> for $ty {
             fn shl_assign_saturate(&mut self, rhs: $rty) {
                 let s = *self;
@@ -565,6 +607,37 @@ macro_rules! saturate_shl_signed {
                         if rhs as usize >= $bits || ($min >> rhs) > s { $min } else { s << rhs }
                     }
                 }
+            }
+        }
+
+        impl ShlPanic<$rty> for $ty {
+            fn shl_panic(self, rhs: $rty) -> Self::Output {
+                match self.cmp(&0) {
+                    Ordering::Equal => return 0,
+                    Ordering::Greater => {
+                        if rhs as usize >= $bits || ($max >> rhs) < self { panic!("Arithmetic overflow"); }
+                    }
+                    Ordering::Less => {
+                        if rhs as usize >= $bits || ($min >> rhs) > self { panic!("Arithmetic overflow"); }
+                    }
+                }
+                self << rhs
+            }
+        }
+
+        impl ShlAssignPanic<$rty> for $ty {
+            fn shl_assign_panic(&mut self, rhs: $rty) {
+                let s = *self;
+                match s.cmp(&0) {
+                    Ordering::Equal => return,
+                    Ordering::Greater => {
+                        if rhs as usize >= $bits || ($max >> rhs) < s { panic!("Arithmetic overflow"); }
+                    }
+                    Ordering::Less => {
+                        if rhs as usize >= $bits || ($min >> rhs) > s { panic!("Arithmetic overflow"); }
+                    }
+                }
+                *self <<= rhs
             }
         }
     };
@@ -683,13 +756,13 @@ macro_rules! abs_unsigned {
                 self
             }
         }
-        
+
         impl AbsWrap for $ty {
             fn abs_wrap(self) -> Self {
                 self
             }
         }
-        
+
         impl AbsSaturate for $ty {
             fn abs_saturate(self) -> Self {
                 self
@@ -717,7 +790,7 @@ macro_rules! abs_signed {
                 if self < 0 { 0.sub_wrap(self) } else { self }
             }
         }
-    
+
         impl AbsSaturate for $ty {
             fn abs_saturate(self) -> Self {
                 if self < 0 { 0.sub_saturate(self) } else { self }
@@ -730,11 +803,11 @@ abs_signed!(i8);
 abs_signed!(i16);
 abs_signed!(i32);
 abs_signed!(i64);
-abs_signed!(isize);    
+abs_signed!(isize);
 
 #[cfg(test)]
 mod test {
-    use super::{AddPanic, SubWrap, MulSaturate};
+    use super::*;
 
     #[test]
     fn test_add_panic_normal() {
