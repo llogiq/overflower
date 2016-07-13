@@ -1,57 +1,265 @@
 extern crate quickcheck;
 extern crate overflower_support;
 
-use quickcheck::{TestResult, quickcheck};
-use std::panic;
-use overflower_support::{AddPanic, AddWrap, AddSaturate};
+use std::panic::{self, catch_unwind};
+use quickcheck::quickcheck;
+use overflower_support::*;
 
-#[test]
-fn check_add_panic() {
-    fn check(args: (usize, usize)) -> TestResult {
-        if let Some(expected) = args.0.checked_add(args.1) {
-            let actual = AddPanic::add_panic(args.0, args.1);
-            if expected != actual {
-                return TestResult::error(format!(
-                        "{} + {}: expected {}, got {}", args.0, args.1,
-                        expected, actual));
-            }
-        } else {
-            if let Ok(actual) = panic::catch_unwind(
-                    || AddPanic::add_panic(args.0, args.1)) {
-                return TestResult::error(format!(
-                        "{} + {}: expected panic, got {}",
-                        args.0, args.1, actual));
-            }
-        }
-        TestResult::passed()
-    }
-    quickcheck(check as fn((usize, usize)) -> TestResult);
+fn dont_panic<F, A, R>(args: A, f: F) -> R
+where F: Fn(A) -> R {
+    let p = panic::take_hook();
+    panic::set_hook(Box::new(|_| ()));
+    let result = f(args);
+    panic::set_hook(p);
+    result
 }
 
 #[test]
-fn check_add_wrap() {
-    fn check(args: (usize, usize)) -> TestResult {
+fn check_add_panic_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        dont_panic(args, |args| {
+            let expected = args.0.checked_add(args.1);
+            let actual = catch_unwind(|| AddPanic::add_panic(args.0, args.1)).ok();
+            expected == actual
+        })
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_add_wrap_usize() {
+    fn check(args: (usize, usize)) -> bool {
         let expected = args.0.wrapping_add(args.1);
         let actual = AddWrap::add_wrap(args.0, args.1);
-        if expected != actual {
-             TestResult::error(format!(
-                 "{} + {}: expected {} got {}", args.0, args.1, expected, actual))
-        } else { TestResult::passed() }
+        expected == actual
     }
-    quickcheck(check as fn((usize, usize)) -> TestResult);
+    quickcheck(check as fn((usize, usize)) -> bool);
 }
 
 #[test]
-fn check_add_saturate() {
-    fn check(args: (usize, usize)) -> TestResult {
+fn check_add_saturate_usize() {
+    fn check(args: (usize, usize)) -> bool {
         let expected = args.0.saturating_add(args.1);
         let actual = AddSaturate::add_saturate(args.0, args.1);
-        if expected != actual {
-             TestResult::error(format!(
-                 "{} + {}: expected {} got {}", args.0, args.1, expected, actual))
-        } else { TestResult::passed() }
+        expected == actual
     }
-    quickcheck(check as fn((usize, usize)) -> TestResult);
+    quickcheck(check as fn((usize, usize)) -> bool);
 }
 
-// same for sub, mul, div, rem – for i8..i64, isize, u8..u64, usize
+
+#[test]
+fn check_sub_panic_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        dont_panic(args, |args| {
+            let expected = args.0.checked_sub(args.1);
+            let actual = catch_unwind(|| SubPanic::sub_panic(args.0, args.1)).ok();
+            expected == actual
+        })
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_sub_wrap_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        let expected = args.0.wrapping_sub(args.1);
+        let actual = SubWrap::sub_wrap(args.0, args.1);
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_sub_saturate_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        let expected = args.0.saturating_sub(args.1);
+        let actual = SubSaturate::sub_saturate(args.0, args.1);
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+
+#[test]
+fn check_mul_panic_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        dont_panic(args, |args| {
+            let expected = args.0.checked_mul(args.1);
+            let actual = catch_unwind(|| MulPanic::mul_panic(args.0, args.1)).ok();
+            expected == actual
+        })
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_mul_wrap_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        let expected = args.0.wrapping_mul(args.1);
+        let actual = MulWrap::mul_wrap(args.0, args.1);
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_mul_saturate_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        let expected = args.0.saturating_mul(args.1);
+        let actual = MulSaturate::mul_saturate(args.0, args.1);
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+
+#[test]
+fn check_div_panic_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        dont_panic(args, |args| {
+            let expected = args.0.checked_div(args.1);
+            let actual = catch_unwind(|| DivPanic::div_panic(args.0, args.1)).ok();
+            expected == actual
+        })
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_div_wrap_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        dont_panic(args, |args| {
+            let expected = args.0.checked_div(args.1);
+            let actual = catch_unwind(|| DivWrap::div_wrap(args.0, args.1)).ok();
+            expected == actual
+        })
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_div_saturate_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        let expected = if args.1 == 0 {
+            if args.0 == 0 { 0 } else { std::usize::MAX } 
+        } else { args.0 / args.1 };
+        let actual = DivSaturate::div_saturate(args.0, args.1);
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+
+#[test]
+fn check_rem_panic_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        dont_panic(args, |args| {
+            let expected = args.0.checked_rem(args.1);
+            let actual = catch_unwind(|| RemPanic::rem_panic(args.0, args.1)).ok();
+            expected == actual
+        })
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_rem_wrap_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        dont_panic(args, |args| {
+            let expected = args.0.checked_rem(args.1);
+            let actual = catch_unwind(|| RemWrap::rem_wrap(args.0, args.1)).ok();
+            expected == actual
+        })
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_rem_saturate_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        let expected = if args.1 == 0 {
+            if args.0 == 0 { 0 } else { std::usize::MAX }
+        } else {
+            args.0 % args.1
+        };
+        let actual = RemSaturate::rem_saturate(args.0, args.1);
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_shl_panic_usize() {
+    fn check(args: (usize, usize)) -> bool {        
+        let expected = if args.0 == 0 { 
+            Some(0)
+        } else if args.1 < 64 && (!0) >> args.1 >= args.0 {
+            Some(args.0 << args.1)
+        } else {
+            None
+        };
+        let actual = dont_panic(args, |args| 
+            catch_unwind(|| ShlPanic::shl_panic(args.0, args.1)).ok());
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_shl_wrap_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        dont_panic(args, |args| {
+            let expected = catch_unwind(|| args.0.wrapping_shl(args.1 as u32)).ok();
+            let actual = catch_unwind(|| ShlWrap::shl_wrap(args.0, args.1)).ok();
+            expected == actual
+        })
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_shl_saturate_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        let expected = if args.1 as usize >= 64 || ((!0) >> args.1) < args.0 {
+            if args.0 == 0 { 0 } else { std::usize::MAX }
+        } else {
+            args.0 << args.1
+        };
+        let actual = ShlSaturate::shl_saturate(args.0, args.1);
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_shr_panic_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        let expected = args.0.checked_shr(args.1 as u32);
+        let actual = dont_panic(args, |args| 
+            catch_unwind(|| ShrPanic::shr_panic(args.0, args.1)).ok());
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_shr_wrap_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        dont_panic(args, |args| {
+            let expected = catch_unwind(|| args.0.wrapping_shr(args.1 as u32)).ok();
+            let actual = catch_unwind(|| ShrWrap::shr_wrap(args.0, args.1)).ok();
+            expected == actual
+        })
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}
+
+#[test]
+fn check_shr_saturate_usize() {
+    fn check(args: (usize, usize)) -> bool {
+        let expected = args.0.checked_shr(args.1 as u32).unwrap_or(0);
+        let actual = ShrSaturate::shr_saturate(args.0, args.1);
+        expected == actual
+    }
+    quickcheck(check as fn((usize, usize)) -> bool);
+}

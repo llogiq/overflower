@@ -258,7 +258,8 @@ macro_rules! saturate_signed {
 
         impl RemSaturate for $ty {
             fn rem_saturate(self, rhs: $ty) -> $ty {
-                self % rhs
+                if rhs == 0 { if self == 0 { 0 } else { $max }
+                } else { self % rhs }
             }
         }
     };
@@ -278,7 +279,8 @@ macro_rules! saturate_unsigned {
 
         impl RemSaturate for $ty {
             fn rem_saturate(self, rhs: $ty) -> $ty {
-                self % rhs
+                if rhs == 0 { if self == 0 { 0 } else { $max }
+                } else { self % rhs }
             }
         }
     };
@@ -446,11 +448,11 @@ pub trait ShrSaturateAssign<RHS=usize> {
 
 impl<R, T: Shr<R>> ShrSaturate<R> for T {
     type Output = <T as Shr<R>>::Output;
-    fn shr_saturate(self, rhs: R) -> Self::Output { self >> rhs }
+    default fn shr_saturate(self, rhs: R) -> Self::Output { self >> rhs }
 }
 
 impl<R, T: ShrAssign<R>> ShrSaturateAssign<R> for T {
-    fn shr_assign_saturate(&mut self, rhs: R) { *self >>= rhs; }
+    default fn shr_assign_saturate(&mut self, rhs: R) { *self >>= rhs; }
 }
 
 pub trait ShlSaturate<RHS=usize> {
@@ -493,6 +495,10 @@ impl<T, R> ShlAssignPanic<R> for T where T: ShlAssign<R> {
     }
 }
 
+pub trait ShrAssignSaturate<RHS=usize> {
+    fn shr_assign_saturate(&mut self, rhs: RHS);
+}
+
 macro_rules! saturate_shl_unsigned {
     ($ty:ty, $max:expr, $bits:expr) => {
         saturate_shl_unsigned!($ty, $max, $bits, u8);
@@ -518,10 +524,16 @@ macro_rules! saturate_shl_unsigned {
             }
         }
 
+       impl ShrSaturate<$rty> for $ty {
+            fn shr_saturate(self, rhs: $rty) -> Self::Output {
+                if rhs as usize >= $bits { 0 } else { self >> rhs }
+            }
+        }
+
         impl ShlAssignSaturate<$rty> for $ty {
             fn shl_assign_saturate(&mut self, rhs: $rty) {
                 if *self == 0 { return; }
-                *self = if rhs as usize  >= $bits || (!0) >> rhs < *self {
+                *self = if rhs as usize >= $bits || (!0) >> rhs < *self {
                     $max
                 } else {
                     *self << rhs
@@ -529,10 +541,16 @@ macro_rules! saturate_shl_unsigned {
             }
         }
 
+        impl ShrAssignSaturate<$rty> for $ty {
+            fn shr_assign_saturate(&mut self, rhs: $rty) {
+                *self = self.checked_shr(rhs as u32).unwrap_or(0);
+            }
+        }
+
         impl ShlPanic<$rty> for $ty {
             fn shl_panic(self, rhs: $rty) -> Self::Output {
                 if self == 0 { return 0; }
-                if rhs as usize >= $bits || ((!0) >> rhs) < self {
+                if (rhs as usize >= $bits || ((!0) >> rhs) < self) && self != 0 {
                     panic!("Arithmetic overflow");
                 }
                 self << rhs
@@ -542,7 +560,7 @@ macro_rules! saturate_shl_unsigned {
         impl ShlAssignPanic<$rty> for $ty {
             fn shl_assign_panic(&mut self, rhs: $rty) {
                 if *self == 0 { return; }
-                *self = if rhs as usize  >= $bits || (!0) >> rhs < *self {
+                *self = if rhs as usize >= $bits || (!0) >> rhs < *self {
                     panic!("Arithmetic overflow");
                 } else {
                     *self << rhs
@@ -595,6 +613,12 @@ macro_rules! saturate_shl_signed {
             }
         }
 
+        impl ShrSaturate<$rty> for $ty {
+            fn shr_saturate(self, rhs: $rty) -> Self::Output {
+                if rhs as usize >= $bits { 0 } else { self >> rhs }
+            }
+        }
+        
         impl ShlAssignSaturate<$rty> for $ty {
             fn shl_assign_saturate(&mut self, rhs: $rty) {
                 let s = *self;
@@ -607,6 +631,12 @@ macro_rules! saturate_shl_signed {
                         if rhs as usize >= $bits || ($min >> rhs) > s { $min } else { s << rhs }
                     }
                 }
+            }
+        }
+        
+        impl ShrAssignSaturate<$rty> for $ty {
+            fn shr_assign_saturate(&mut self, rhs: $rty) {
+                *self = self.checked_shr(rhs as u32).unwrap_or(0);
             }
         }
 
@@ -817,6 +847,7 @@ mod test {
     #[test]
     #[should_panic]
     fn test_add_panic_panics() {
+        ::std::panic::set_hook(Box::new(|_| ()));
         255u8.add_panic(2u8);
     }
 
