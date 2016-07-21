@@ -12,7 +12,7 @@ use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Mac,
                   UnOp};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
-use syntax::ext::expand::{expand_block, expand_expr, expand_item};
+use syntax::ext::expand::{expand_expr, expand_item};
 use syntax::fold::{self, Folder};
 use syntax::parse::token;
 use syntax::ptr::P;
@@ -71,7 +71,7 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
 
     fn fold_block(&mut self, block: P<Block>) -> P<Block> {
         if block.stmts.iter().any(is_stmt_macro) {
-            let expanded = expand_block(block, &mut self.cx.expander());
+            let expanded = self.cx.expander().fold_block(block);
             fold::noop_fold_block(expanded, self)
         } else {
             fold::noop_fold_block(block, self)
