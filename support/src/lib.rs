@@ -45,7 +45,8 @@ macro_rules! panic_biself {
     ($trait_panic:ident, $fn_panic:ident, $checked_fn:ident, $ty:ty) => {
         impl $trait_panic<$ty> for $ty {
             fn $fn_panic(self, rhs: $ty) -> $ty {
-                self.$checked_fn(rhs).expect("arithmetic overflow")
+                if let Some(x) = self.$checked_fn(rhs) { x }
+                else { panic!("arithmetic overflow") }
             }
         }
     }
@@ -84,7 +85,7 @@ macro_rules! panic_assign_biself {
     ($trait_panic:ident, $fn_panic:ident, $checked_fn:ident, $ty:ty) => {
         impl $trait_panic<$ty> for $ty {
             fn $fn_panic(&mut self, rhs: $ty) {
-                *self = self.$checked_fn(rhs).expect("arithmetic overflow");
+                *self = if let Some(x) = self.$checked_fn(rhs) { x } else { panic!("arithmetic overflow"); }
             }
         }
     }
@@ -356,14 +357,15 @@ macro_rules! panic_shifts {
     ($trait_panic:ident, $trait_assign_panic:ident, $fn_panic:ident, $fn_assign_panic:ident, $checked_fn:ident, $ty:ty, $rty:ty) => {
         impl $trait_panic<$rty> for $ty {
             fn $fn_panic(self, rhs: $rty) -> Self::Output {
-                self.$checked_fn(rhs as u32).expect("Arithmetic overflow")
+                if let Some(x) = self.$checked_fn(rhs as u32) { x } else
+                            { panic!("Arithmetic overflow") }
             }
         }
 
         impl $trait_assign_panic<$rty> for $ty {
             fn $fn_assign_panic(&mut self, rhs: $rty) {
-                *self = self.$checked_fn(rhs as u32)
-                            .expect("Arithmetic overflow")
+                *self = if let Some(x) = self.$checked_fn(rhs as u32) { x } else
+                            { panic!("Arithmetic overflow") }
             }
         }
     }
@@ -618,7 +620,7 @@ macro_rules! saturate_shl_signed {
                 if rhs as usize >= $bits { 0 } else { self >> rhs }
             }
         }
-        
+
         impl ShlAssignSaturate<$rty> for $ty {
             fn shl_assign_saturate(&mut self, rhs: $rty) {
                 let s = *self;
@@ -633,7 +635,7 @@ macro_rules! saturate_shl_signed {
                 }
             }
         }
-        
+
         impl ShrAssignSaturate<$rty> for $ty {
             fn shr_assign_saturate(&mut self, rhs: $rty) {
                 *self = self.checked_shr(rhs as u32).unwrap_or(0);
@@ -706,7 +708,8 @@ macro_rules! neg_panic {
     ($ty:ty) => {
         impl NegPanic for $ty {
             fn neg_panic(self) -> Self::Output {
-                self.checked_neg().expect("arithmetic overflow")
+                if let Some(x) = self.checked_neg() { x }
+                else { panic!("arithmetic overflow") }
             }
         }
     }
