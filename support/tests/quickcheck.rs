@@ -448,23 +448,72 @@ test_rem_saturate!(i32, test_rem_saturate_i32, std::i32::MAX);
 test_rem_saturate!(i16, test_rem_saturate_i16, std::i16::MAX);
 test_rem_saturate!(i8,  test_rem_saturate_i8, std::i8::MAX);
 
+#[cfg(target_pointer_width = "16")]
+const USIZE_BITS: usize = 16;
 
-#[test]
-fn check_shl_panic_usize() {
-    fn check(args: (usize, usize)) -> bool {        
-        let expected = if args.0 == 0 { 
-            Some(0)
-        } else if args.1 < 64 && (!0) >> args.1 >= args.0 {
-            Some(args.0 << args.1)
-        } else {
-            None
-        };
-        let actual = catch_unwind(|| ShlPanic::shl_panic(args.0, args.1)).ok();
-        expected == actual
-    }
-    install_handler();
-    quickcheck(check as fn((usize, usize)) -> bool);
+#[cfg(target_pointer_width = "32")]
+const USIZE_BITS: usize = 16;
+
+#[cfg(target_pointer_width = "64")]
+const USIZE_BITS: usize = 64;
+
+macro_rules! test_shl_panic {
+    ($ty:ty, $name:ident, $bits:expr) => {
+        #[test]
+        fn $name() {
+            fn check(args: ($ty, $ty)) -> bool {
+                let expected = if args.0 == 0 {
+                    Some(0)
+                } else if args.1 < $bits as $ty && (!0) >> args.1 >= args.0 {
+                    Some(args.0 << args.1)
+                } else {
+                    None
+                };
+                let actual = catch_unwind(
+                             || ShlPanic::shl_panic(args.0, args.1)).ok();
+                expected == actual
+            }
+            install_handler();
+            quickcheck(check as fn(($ty, $ty)) -> bool);
+        }
+    };
 }
+
+test_shl_panic!(usize, test_shl_panic_usize, USIZE_BITS);
+test_shl_panic!(u64, test_shl_panic_u64, 64);
+test_shl_panic!(u32, test_shl_panic_u32, 32);
+test_shl_panic!(u16, test_shl_panic_u16, 16);
+test_shl_panic!(u8,  test_shl_panic_u8, 8);
+
+macro_rules! test_ishl_panic {
+    ($ty:ty, $name:ident, $bits:expr, $max:expr, $min:expr) => {
+        #[test]
+        fn $name() {
+            fn check(args: ($ty, $ty)) -> bool {
+                let expected = match args.0.cmp(&0) {
+                    Ordering::Equal => Some(0),
+                    Ordering::Greater => {
+                        if args.1 as usize >= $bits || ($max >> args.1) < args.0 { None } else { Some(args.0 << args.1) }
+                    }
+                    Ordering::Less => {
+                        if args.1 as usize >= $bits || ($min >> args.1) > args.0 { None } else { Some(args.0 << args.1) }
+                    }
+                };
+                let actual = catch_unwind(
+                             || ShlPanic::shl_panic(args.0, args.1)).ok();
+                expected == actual
+            }
+            install_handler();
+            quickcheck(check as fn(($ty, $ty)) -> bool);
+        }
+    };
+}
+
+test_ishl_panic!(isize, test_shl_panic_isize, (USIZE_BITS - 1), std::isize::MAX, std::isize::MIN);
+test_ishl_panic!(i64, test_shl_panic_i64, 63, std::i64::MAX, std::i64::MIN);
+test_ishl_panic!(i32, test_shl_panic_i32, 31, std::i32::MAX, std::i32::MIN);
+test_ishl_panic!(i16, test_shl_panic_i16, 15, std::i16::MAX, std::i16::MIN);
+test_ishl_panic!(i8,  test_shl_panic_i8, 7, std::i8::MAX, std::i8::MIN);
 
 #[test]
 fn check_shl_wrap_usize() {
