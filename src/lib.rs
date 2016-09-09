@@ -12,7 +12,6 @@ use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Lit,
                   Path, PathSegment, Stmt, StmtKind, UnOp};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
-use syntax::ext::expand::{expand_expr, expand_item};
 use syntax::fold::{self, Folder};
 use syntax::parse::token::{self, InternedString};
 use syntax::ptr::P;
@@ -60,7 +59,7 @@ fn is_stmt_macro(stmt: &Stmt) -> bool {
 impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
     fn fold_item(&mut self, item: P<Item>) -> SmallVector<P<Item>> {
         if let ItemKind::Mac(_) = item.node {
-            let expanded = expand_item(item, &mut self.cx.expander());
+            let expanded = self.cx.expander().fold_item(item);
             expanded.into_iter()
                     .flat_map(|i| self.fold_item(i).into_iter())
                     .collect()
@@ -82,7 +81,7 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
         if self.mode == Mode::DontCare { return expr; }
         match expr.unwrap() {
             e@Expr { node: ExprKind::Mac(_), .. } => {
-                let expanded = expand_expr(e, &mut self.cx.expander());
+                let expanded = self.cx.expander().fold_expr(P(e));
                 self.fold_expr(expanded)
             }
             Expr { id, node: ExprKind::Call(path, args), span, attrs } => {
