@@ -7,14 +7,14 @@ use std::fmt::{self, Display, Formatter};
 
 use rustc_plugin::registry::Registry;
 use syntax::codemap::{BytePos, Span, Spanned};
-use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Mac, 
-                  MetaItem, MetaItemKind, Path, PathSegment, Stmt, StmtKind, 
-                  UnOp};
+use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Lit,
+                  LitKind, Mac, MetaItem, MetaItemKind, NestedMetaItemKind,
+                  Path, PathSegment, Stmt, StmtKind, UnOp};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
 use syntax::ext::expand::{expand_expr, expand_item};
 use syntax::fold::{self, Folder};
-use syntax::parse::token;
+use syntax::parse::token::{self, InternedString};
 use syntax::ptr::P;
 use syntax::util::small_vector::SmallVector;
 
@@ -94,7 +94,7 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
                         }
                     }
                 }
-                P(fold::noop_fold_expr(Expr { id: id, node: ExprKind::Call(path, args), 
+                P(fold::noop_fold_expr(Expr { id: id, node: ExprKind::Call(path, args),
                         span: span, attrs: attrs }, self))
             }
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Add, span: op }, l, r), span, .. } => {
@@ -179,30 +179,52 @@ fn is_abs(p: &Path) -> bool {
             "usize", "isize"]) && any_of(&segs[2], &["abs"])
 }
 
+fn parse_mode_str(w: &InternedString, span: Span)
+        -> Result<Mode, (Span, &'static str)> {
+    if w == "wrap" {
+        Ok(Mode::Wrap)
+    } else if w == "panic" {
+        Ok(Mode::Panic)
+    } else if w == "saturate" {
+        Ok(Mode::Saturate)
+    } else if w == "default" {
+        Ok(Mode::DontCare)
+    } else {
+        Err((span, "Unknown overflow, expected wrap, panic or saturate"))
+    }
+}
+
+fn parse_mode_lit(lit: &Lit, span: Span) -> Result<Mode, (Span, &'static str)> {
+    if let LitKind::Str(ref i, _) = lit.node {
+        parse_mode_str(i, span)
+    } else {
+        return Err((span, "overflow argument must be a string literal"))
+    }
+}
+
 fn get_mode(mi: &MetaItem) -> Result<Mode, (Span, &'static str)> {
-    if let MetaItemKind::List(ref s, ref l) = mi.node {
-        assert!(s == "overflow");
-        if l.len() != 1 {
-            Err((mi.span, "Expected exactly one argument to `#[overflow(_)]`"))
-        } else {
-            if let MetaItemKind::Word(ref w) = l[0].node {
-                if w == "wrap" {
-                    Ok(Mode::Wrap)
-                } else if w == "panic" {
-                    Ok(Mode::Panic)
-                } else if w == "saturate" {
-                    Ok(Mode::Saturate)
-                } else if w == "default" {
-                    Ok(Mode::DontCare)
-                } else {
-                    Err((l[0].span, "Unknown overflow, expected wrap, panic or saturate"))
+    match mi.node {
+        MetaItemKind::NameValue(ref name, ref l) => {
+            assert!(name == "overflow");
+            parse_mode_lit(l, mi.span)
+        }
+        MetaItemKind::List(ref name, ref list) => {
+            assert!(name == "overflow");
+            if list.len() != 1 {
+                return Err((mi.span, "Expected exactly one argument to `#[overflow(_)]`"))
+            }
+            match list[0].node {
+                NestedMetaItemKind::Literal(ref l) => parse_mode_lit(l, mi.span),
+                NestedMetaItemKind::MetaItem(ref i) => {
+                    if let MetaItemKind::Word(ref s) = i.node {
+                        parse_mode_str(s, mi.span)
+                    } else {
+                        Err((mi.span, "overflower does not do nested attributes"))
+                    }
                 }
-            } else {
-                Err((mi.span, "Expected a word argument to `#[overflow(_)]`"))
             }
         }
-    } else {
-        Err((mi.span, "Expected an argument to `#[overflow(_)]`"))
+        _ => Err((mi.span, "Expected an argument to `#[overflow(_)]`"))
     }
 }
 
