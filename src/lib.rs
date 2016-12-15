@@ -13,7 +13,7 @@ use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Lit,
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
 use syntax::fold::{self, Folder};
-use syntax::parse::token::{self, InternedString};
+use syntax::symbol::Symbol;
 use syntax::ptr::P;
 use syntax::util::small_vector::SmallVector;
 
@@ -169,8 +169,8 @@ fn marked(o: &mut Overflower, span: Span) -> Span {
 
 fn is_abs(p: &Path) -> bool {
     fn any_of(s: &PathSegment, options: &[&str]) -> bool {
-        let name = s.identifier.name.as_str();
-        options.iter().any(|o| name == *o)
+        let name : &str = &*s.identifier.name.as_str();
+        options.iter().any(|o| o == &name)
     }
     let segs = &p.segments;
     p.global && segs.len() == 3 && any_of(&segs[0], &["std", "core"]) &&
@@ -178,8 +178,9 @@ fn is_abs(p: &Path) -> bool {
             "usize", "isize"]) && any_of(&segs[2], &["abs"])
 }
 
-fn parse_mode_str(w: &InternedString, span: Span)
+fn parse_mode_str(w: &Symbol, span: Span)
         -> Result<Mode, (Span, &'static str)> {
+    let w : &str = &*w.as_str();
     if w == "wrap" {
         Ok(Mode::Wrap)
     } else if w == "panic" {
@@ -203,20 +204,20 @@ fn parse_mode_lit(lit: &Lit, span: Span) -> Result<Mode, (Span, &'static str)> {
 
 fn get_mode(mi: &MetaItem) -> Result<Mode, (Span, &'static str)> {
     match mi.node {
-        MetaItemKind::NameValue(ref name, ref l) => {
-            assert!(name == "overflow");
+        MetaItemKind::NameValue(ref l) => {
+            assert!(mi.name == "overflow");
             parse_mode_lit(l, mi.span)
         }
-        MetaItemKind::List(ref name, ref list) => {
-            assert!(name == "overflow");
+        MetaItemKind::List(ref list) => {
+            assert!(mi.name == "overflow");
             if list.len() != 1 {
                 return Err((mi.span, "Expected exactly one argument to `#[overflow(_)]`"))
             }
             match list[0].node {
                 NestedMetaItemKind::Literal(ref l) => parse_mode_lit(l, mi.span),
                 NestedMetaItemKind::MetaItem(ref i) => {
-                    if let MetaItemKind::Word(ref s) = i.node {
-                        parse_mode_str(s, mi.span)
+                    if let MetaItemKind::Word = i.node {
+                        parse_mode_str(&i.name, mi.span)
                     } else {
                         Err((mi.span, "overflower does not do nested attributes"))
                     }
@@ -229,7 +230,7 @@ fn get_mode(mi: &MetaItem) -> Result<Mode, (Span, &'static str)> {
 
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
-    reg.register_syntax_extension(token::intern("overflow"),
+    reg.register_syntax_extension(Symbol::intern("overflow"),
         SyntaxExtension::MultiModifier(Box::new(|cx: &mut ExtCtxt, _span: Span, mi: &MetaItem,
               a: Annotatable| {
         let mode = get_mode(mi).unwrap_or_else(|(espan, e)| {
