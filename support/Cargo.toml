@@ -1,6 +1,6 @@
 [package]
 name = "overflower_support"
-version = "0.1.4"
+version = "0.1.5"
 description = "A bunch of specialized traits + impls to allow automated overflow handling without type inference. Nightly only" 
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 license = "Apache-2.0"
