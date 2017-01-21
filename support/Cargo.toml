@@ -6,6 +6,7 @@ authors = ["Andre Bogus <bogusandre@gmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/llogiq/overflower"
 keywords = ["arithmetic", "overflow", "nightly"]
+categories = ["development-tools"]
 
 [dev-dependencies]
 quickcheck = "^0.2"
