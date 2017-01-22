@@ -12,18 +12,68 @@
 //! Note: This needs a nightly compiler because it uses the specialization feature.
 
 #![feature(specialization)]
+#![deny(missing_docs)]
 
 use std::ops::*;
 use std::cmp::*;
 
+/// Add two values, panicking on overflow
+///
+/// This does the same as the `std::ops::Add` trait for all non-integer types.
+/// It is specialized for integer types to panic on over- or underflow.
+pub trait AddPanic<RHS = Self> {
+    /// The output type of the addition
+    type Output;
+    /// add two values, panicking on overflow
+    fn add_panic(self, rhs: RHS) -> Self::Output;
+}
+
+/// Subtract two values, panicking on overflow
+///
+/// This does the same as the `std::ops::Sub` trait for all non-integer types.
+/// It is specialized for integer types to panic on over- or underflow.
+pub trait SubPanic<RHS = Self> {
+    /// The output type of the subtraction
+    type Output;
+    /// subtract two values, panicking on overflow
+    fn sub_panic(self, rhs: RHS) -> Self::Output;
+}
+
+/// Multiply two values, panicking on overflow
+///
+/// This does the same as the `std::ops::Mul` trait for all non-integer types.
+/// It is specialized for integer types to panic on over- or underflow.
+pub trait MulPanic<RHS = Self> {
+    /// The output type of the multiplication
+    type Output;
+    /// multiply two values, panicking on overflow
+    fn mul_panic(self, rhs: RHS) -> Self::Output;
+}
+
+/// Divide two values, panicking on overflow
+///
+/// This does the same as the `std::ops::Div` trait for all non-integer types.
+/// It is specialized for integer types to panic on over- or underflow.
+pub trait DivPanic<RHS = Self> {
+    /// The output type of the multiplication
+    type Output;
+    /// divide two values, panicking on overflow
+    fn div_panic(self, rhs: RHS) -> Self::Output;
+}
+
+/// Get the remainder of dividing one value by another, panicking on overflow
+///
+/// This does the same as the `std::ops::Rem` trait for all non-integer types.
+/// It is specialized for integer types to panic on over- or underflow.
+pub trait RemPanic<RHS = Self> {
+    /// The output type of the remainder operation
+    type Output;
+    /// divide two values and get the remainder, panicking on overflow
+    fn rem_panic(self, rhs: RHS) -> Self::Output;
+}
+
 macro_rules! panic_biself {
     ($trait_name:ident, $trait_panic:ident, $fn_name:ident, $fn_panic:ident, $checked_fn:ident) => {
-        #[doc(hidden)]
-        pub trait $trait_panic<RHS = Self> {
-            type Output;
-            fn $fn_panic(self, rhs: RHS) -> Self::Output;
-        }
-
         impl<T, R> $trait_panic<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_panic(self, rhs: R) -> Self::Output {
@@ -58,13 +108,53 @@ panic_biself!(Mul, MulPanic, mul, mul_panic, checked_mul);
 panic_biself!(Div, DivPanic, div, div_panic, checked_div);
 panic_biself!(Rem, RemPanic, rem, rem_panic, checked_rem);
 
+/// Add a value to a given value in-place, panicking on overflow
+///
+/// This trait does the same as the `std::ops::AddAssign` trait for most values.
+/// it is specialized for integer types to panic on over- or underflow.
+pub trait AddAssignPanic<RHS = Self> {
+    /// add the right-hand side value to this value, panicking on overflow
+    fn add_assign_panic(&mut self, rhs: RHS);
+}
+
+/// SUbtract a value from a given value in-place, panicking on overflow
+///
+/// This trait does the same as the `std::ops::SubAssign` trait for most values.
+/// it is specialized for integer types to panic on over- or underflow.
+pub trait SubAssignPanic<RHS = Self> {
+    /// subtract the right-hand side value from this value, panicking on overflow
+    fn sub_assign_panic(&mut self, rhs: RHS);
+}
+
+/// Multiply a value with a given value in-place, panicking on overflow
+///
+/// This trait does the same as the `std::ops::MulAssign` trait for most values.
+/// it is specialized for integer types to panic on over- or underflow.
+pub trait MulAssignPanic<RHS = Self> {
+    /// multiply the right-hand side value with this value, panicking on overflow
+    fn mul_assign_panic(&mut self, rhs: RHS);
+}
+
+/// Divide this value by a given value in-place, panicking on overflow
+///
+/// This trait does the same as the `std::ops::DivAssign` trait for most values.
+/// it is specialized for integer types to panic on over- or underflow.
+pub trait DivAssignPanic<RHS = Self> {
+    /// divide this value by the right-hand side value, panicking on overflow
+    fn div_assign_panic(&mut self, rhs: RHS);
+}
+
+/// Get the remainder of dividing this value by a given value in-place, panicking on overflow
+///
+/// This trait does the same as the `std::ops::RemAssign` trait for most values.
+/// it is specialized for integer types to panic on over- or underflow.
+pub trait RemAssignPanic<RHS = Self> {
+    /// divide this value by the right-hand side value and get the remainder, panicking on overflow
+    fn rem_assign_panic(&mut self, rhs: RHS);
+}
+
 macro_rules! panic_assign_biself {
     ($trait_name:ident, $trait_panic:ident, $fn_name:ident, $fn_panic:ident, $checked_fn:ident) => {
-        #[doc(hidden)]
-        pub trait $trait_panic<RHS = Self> {
-            fn $fn_panic(&mut self, rhs: RHS);
-        }
-
         impl<T, R> $trait_panic<R> for T where T: $trait_name<R> {
             default fn $fn_panic(&mut self, rhs: R) {
                 std::ops::$trait_name::$fn_name(self, rhs)
@@ -88,7 +178,7 @@ macro_rules! panic_assign_biself {
                 *self = if let Some(x) = self.$checked_fn(rhs) { x } else { panic!("arithmetic overflow"); }
             }
         }
-    }
+    };
 }
 
 panic_assign_biself!(AddAssign, AddAssignPanic, add_assign, add_assign_panic, checked_add);
@@ -97,14 +187,68 @@ panic_assign_biself!(MulAssign, MulAssignPanic, mul_assign, mul_assign_panic, ch
 panic_assign_biself!(DivAssign, DivAssignPanic, div_assign, div_assign_panic, checked_div);
 panic_assign_biself!(RemAssign, RemAssignPanic, rem_assign, rem_assign_panic, checked_rem);
 
+/// Add two values, wrapping on overflow
+///
+/// This trait does the same as `std::ops::Add` for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait AddWrap<RHS = Self> {
+    /// The result type of the addition
+    type Output;
+    
+    /// add two values, wrap on overflow
+    fn add_wrap(self, rhs: RHS) -> Self::Output;
+}
+
+/// Subtract two values, wrapping on overflow
+///
+/// This trait does the same as `std::ops::Sub` for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait SubWrap<RHS = Self> {
+    /// The result type of the subtraction    
+    type Output;
+
+    /// subtract two values, wrap on overflow
+    fn sub_wrap(self, rhs: RHS) -> Self::Output;
+}
+
+/// Multiply two values, wrapping on overflow
+///
+/// This trait does the same as `std::ops::Mul` for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait MulWrap<RHS = Self> {
+    /// The result type of the multiplication    
+    type Output;
+
+    /// multiply two values, wrap on overflow
+    fn mul_wrap(self, rhs: RHS) -> Self::Output;
+}
+
+/// Divide two values, wrapping on overflow
+///
+/// This trait does the same as `std::ops::Div` for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait DivWrap<RHS = Self> {
+    /// The result type of the division   
+    type Output;
+
+    /// divide two values, wrap on overflow
+    fn div_wrap(self, rhs: RHS) -> Self::Output;
+}
+
+/// Divide two values and get the remainder, wrapping on overflow
+///
+/// This trait does the same as `std::ops::Rem` for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait RemWrap<RHS = Self> {
+    /// The result type of the division remainder   
+    type Output;
+
+    /// divide two values and get the remainder, wrap on overflow
+    fn rem_wrap(self, rhs: RHS) -> Self::Output;
+}
+
 macro_rules! wrap_biself {
     ($trait_name:ident, $trait_wrap:ident, $fn_name:ident, $fn_wrap:ident, $wrapped_fn:ident) => {
-        #[doc(hidden)]
-        pub trait $trait_wrap<RHS = Self> {
-            type Output;
-            fn $fn_wrap(self, rhs: RHS) -> Self::Output;
-        }
-
         impl<T, R> $trait_wrap<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_wrap(self, rhs: R) -> Self::Output {
@@ -138,13 +282,54 @@ wrap_biself!(Mul, MulWrap, mul, mul_wrap, wrapping_mul);
 wrap_biself!(Div, DivWrap, div, div_wrap, wrapping_div);
 wrap_biself!(Rem, RemWrap, rem, rem_wrap, wrapping_rem);
 
+/// Add a value to a given value in-place, wrapping on overflow
+///
+/// This trait does the same as the `std::ops::AddAssign` trait for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait AddAssignWrap<RHS = Self> {
+    /// add a value to a given value in-place, wrapping on overflow
+    fn add_assign_wrap(&mut self, rhs: RHS);
+}
+
+/// Subtract a value from a given value in-place, wrapping on overflow
+///
+/// This trait does the same as the `std::ops::SubAssign` trait for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait SubAssignWrap<RHS = Self> {
+    /// subtract a value from a given value in-place, wrapping on overflow
+    fn sub_assign_wrap(&mut self, rhs: RHS);
+}
+
+/// Multiply a value with a given value in-place, wrapping on overflow
+///
+/// This trait does the same as the `std::ops::MulAssign` trait for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait MulAssignWrap<RHS = Self> {
+    /// multiply a value with a given value in-place, wrapping on overflow
+    fn mul_assign_wrap(&mut self, rhs: RHS);
+}
+
+/// Divide a value by a given value in-place, wrapping on overflow
+///
+/// This trait does the same as the `std::ops::DivAssign` trait for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait DivAssignWrap<RHS = Self> {
+    /// divide a value by a given value in-place, wrapping on overflow
+    fn div_assign_wrap(&mut self, rhs: RHS);
+}
+
+/// Divide a value to a given value, getting the remainder in-place, wrapping
+/// on overflow
+///
+/// This trait does the same as the `std::ops::RemAssign` trait for most values.
+/// it is specialized for integer types to wrap on over- or underflow.
+pub trait RemAssignWrap<RHS = Self> {
+    /// get the remainder of a division in place, wrapping on overflow
+    fn rem_assign_wrap(&mut self, rhs: RHS);
+}
+
 macro_rules! wrap_assign_biself {
     ($trait_name:ident, $trait_wrap:ident, $fn_name:ident, $fn_wrap:ident, $wrapped_fn:ident) => {
-        #[doc(hidden)]
-        pub trait $trait_wrap<RHS = Self> {
-            fn $fn_wrap(&mut self, rhs: RHS);
-        }
-
         impl<T, R> $trait_wrap<R> for T where T: $trait_name<R> {
             default fn $fn_wrap(&mut self, rhs: R) {
                 std::ops::$trait_name::$fn_name(self, rhs)
@@ -177,14 +362,71 @@ wrap_assign_biself!(MulAssign, MulAssignWrap, mul_assign, mul_assign_wrap, wrapp
 wrap_assign_biself!(DivAssign, DivAssignWrap, div_assign, div_assign_wrap, wrapping_div);
 wrap_assign_biself!(RemAssign, RemAssignWrap, rem_assign, rem_assign_wrap, wrapping_rem);
 
+//----
+
+/// Add two values, saturating on overflow
+///
+/// This trait does the same as `std::ops::Add` for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait AddSaturate<RHS = Self> {
+    /// The result type of the addition
+    type Output;
+    
+    /// add two values, saturate on overflow
+    fn add_saturate(self, rhs: RHS) -> Self::Output;
+}
+
+/// Subtract two values, saturating on overflow
+///
+/// This trait does the same as `std::ops::Sub` for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait SubSaturate<RHS = Self> {
+    /// The result type of the subtraction    
+    type Output;
+
+    /// subtract two values, saturate on overflow
+    fn sub_saturate(self, rhs: RHS) -> Self::Output;
+}
+
+/// Multiply two values, saturating on overflow
+///
+/// This trait does the same as `std::ops::Mul` for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait MulSaturate<RHS = Self> {
+    /// The result type of the multiplication    
+    type Output;
+
+    /// multiply two values, saturate on overflow
+    fn mul_saturate(self, rhs: RHS) -> Self::Output;
+}
+
+/// Divide two values, saturating on overflow
+///
+/// This trait does the same as `std::ops::Div` for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait DivSaturate<RHS = Self> {
+    /// The result type of the division   
+    type Output;
+
+    /// divide two values, saturate on overflow
+    fn div_saturate(self, rhs: RHS) -> Self::Output;
+}
+
+/// Divide two values and get the remainder, saturating on overflow
+///
+/// This trait does the same as `std::ops::Rem` for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait RemSaturate<RHS = Self> {
+    /// The result type of the division remainder   
+    type Output;
+
+    /// divide two values and get the remainder, saturate on overflow
+    fn rem_saturate(self, rhs: RHS) -> Self::Output;
+}
+
+
 macro_rules! saturate_biself {
     ($trait_name:ident, $trait_saturate:ident, $fn_name:ident, $fn_saturate:ident, $saturated_fn:ident) => {
-        #[doc(hidden)]
-        pub trait $trait_saturate<RHS = Self> {
-            type Output;
-            fn $fn_saturate(self, rhs: RHS) -> Self::Output;
-        }
-
         impl<T, R> $trait_saturate<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_saturate(self, rhs: R) -> Self::Output {
@@ -216,21 +458,11 @@ saturate_biself!(Add, AddSaturate, add, add_saturate, saturating_add);
 saturate_biself!(Sub, SubSaturate, sub, sub_saturate, saturating_sub);
 saturate_biself!(Mul, MulSaturate, mul, mul_saturate, saturating_mul);
 
-pub trait DivSaturate<Rhs=Self> {
-    type Output;
-    fn div_saturate(self, rhs: Rhs) -> Self::Output;
-}
-
 impl<R, T: Div<R>> DivSaturate<R> for T {
     type Output = <T as Div<R>>::Output;
     default fn div_saturate(self, rhs: R) -> Self::Output {
         Div::div(self, rhs)
     }
-}
-
-pub trait RemSaturate<RHS=Self> {
-    type Output;
-    fn rem_saturate(self, rhs: RHS) -> Self::Output;
 }
 
 impl<R, T: Rem<R>> RemSaturate<R> for T {
@@ -298,6 +530,31 @@ saturate_signed!(i32,   std::i32::MIN,   std::i32::MAX);
 saturate_signed!(i64,   std::i64::MIN,   std::i64::MAX);
 saturate_signed!(isize, std::isize::MIN, std::isize::MAX);
 
+/// Shift right, panic if the number of bits shifted are higher than the width
+/// of the type
+///
+/// This does the same as the `std::ops::Shr` trait for most types.
+/// it is specialized for integer types to panic on over- or underflow.
+pub trait ShrPanic<RHS=usize> {
+    /// THe output type of the shift operation
+    type Output;
+
+    /// shift right, panic if the number of bits shifted are higher than the
+    /// width of the type    
+    fn shr_panic(self, rhs: RHS) -> Self::Output;
+}
+
+/// Shift right in place, panic if the number of bits shifted are higher than
+/// the width of the type
+///
+/// This does the same as the `std::ops::ShrAssign` trait for most types.
+/// it is specialized for integer types to panic on over- or underflow.
+pub trait ShrAssignPanic<RHS=usize> {
+    /// shift right in place, panic if the number of bits shifted are higher
+    /// than the width of the type        
+    fn shr_assign_panic(&mut self, rhs: RHS);
+}
+
 macro_rules! panic_shifts {
     (@$trait_name:ident,
       $trait_assign_name:ident,
@@ -308,21 +565,11 @@ macro_rules! panic_shifts {
       $fn_panic:ident,
       $fn_assign_panic:ident,
       $checked_fn:ident) => {
-        #[doc(hidden)]
-        pub trait $trait_panic<RHS=usize> {
-            type Output;
-            fn $fn_panic(self, rhs: RHS) -> Self::Output;
-        }
-
         impl<T, R> $trait_panic<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_panic(self, rhs: R) -> Self::Output {
                 std::ops::$trait_name::$fn_name(self, rhs)
             }
-        }
-
-        pub trait $trait_assign_panic<RHS=usize> {
-            fn $fn_assign_panic(&mut self, rhs: RHS);
         }
 
         impl<T, R> $trait_assign_panic<R> for T where T: $trait_assign_name<R> {
@@ -373,23 +620,62 @@ macro_rules! panic_shifts {
 
 panic_shifts!(@Shr, ShrAssign, ShrPanic, ShrAssignPanic, shr, shr_assign, shr_panic, shr_assign_panic, checked_shr);
 
+/// Shift left, return 0 if the number of bits shifted are higher than the
+/// width of the type
+///
+/// This does the same as the `std::ops::Shl` trait for most types.
+/// it is specialized for integer types to return zero on over- or underflow.
+pub trait ShlWrap<RHS=usize> {
+    /// the return type of our shift operation
+    type Output;
+    /// shift left, return 0 if the number of bits shifted are higher than the
+    /// width of the type
+    fn shl_wrap(self, rhs: RHS) -> Self::Output;
+}
+
+/// Shift left in place, set self to 0 if the number of bits shifted are higher
+/// than the width of the type
+///
+/// This does the same as the `std::ops::ShlAssign` trait for most types.
+/// it is specialized for integer types to return zero on over- or underflow.
+pub trait ShlAssignWrap<RHS=usize> {
+    /// Shift left in place, set self to 0 if the number of bits shifted are
+    /// higher than the width of the type
+    fn shl_assign_wrap(&mut self, rhs: RHS);
+}
+
+/// Shift right, return 0 if the number of bits shifted are higher than the
+/// width of the type
+///
+/// This does the same as the `std::ops::Shr` trait for most types.
+/// it is specialized for integer types to return zero on over- or underflow.
+pub trait ShrWrap<RHS=usize> {
+    /// the return type of our shift operation
+    type Output;
+    /// shift right, return 0 if the number of bits shifted are higher than the
+    /// width of the type
+    fn shr_wrap(self, rhs: RHS) -> Self::Output;
+}
+
+/// Shift right in place, set self to 0 if the number of bits shifted are
+/// higher than the width of the type
+///
+/// This does the same as the `std::ops::ShrAssign` trait for most types.
+/// it is specialized for integer types to return zero on over- or underflow.
+pub trait ShrAssignWrap<RHS=usize> {
+    /// Shift right in place, set self to 0 if the number of bits shifted are
+    /// higher than the width of the type
+    fn shr_assign_wrap(&mut self, rhs: RHS);
+}
+
 macro_rules! wrap_shifts {
     (@$trait_name:ident, $trait_assign_name:ident, $trait_wrap:ident, $trait_assign_wrap:ident, $fn_name:ident, $fn_assign_name:ident, $fn_wrap:ident, $fn_assign_wrap:ident, $wrapping_fn:ident) => {
-        #[doc(hidden)]
-        pub trait $trait_wrap<RHS=usize> {
-            type Output;
-            fn $fn_wrap(self, rhs: RHS) -> Self::Output;
-        }
 
         impl<T, R> $trait_wrap<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_wrap(self, rhs: R) -> Self::Output {
                 std::ops::$trait_name::$fn_name(self, rhs)
             }
-        }
-
-        pub trait $trait_assign_wrap<RHS=usize> {
-            fn $fn_assign_wrap(&mut self, rhs: RHS);
         }
 
         impl<T, R> $trait_assign_wrap<R> for T where T: $trait_assign_name<R> {
@@ -439,12 +725,28 @@ macro_rules! wrap_shifts {
 wrap_shifts!(@Shl, ShlAssign, ShlWrap, ShlAssignWrap, shl, shl_assign, shl_wrap, shl_assign_wrap, wrapping_shl);
 wrap_shifts!(@Shr, ShrAssign, ShrWrap, ShrAssignWrap, shr, shr_assign, shr_wrap, shr_assign_wrap, wrapping_shr);
 
+/// Shift right, return 0 if the number of bits shifted are higher than the
+/// width of the type
+///
+/// This does the same as the `std::ops::Shr` trait for most types.
+/// it is specialized for integer types to return zero on over- or underflow.
 pub trait ShrSaturate<RHS=usize> {
+    /// the return type of our shift operation
     type Output;
+    /// shift right, return 0 if the number of bits shifted are higher than the
+    /// width of the type
     fn shr_saturate(self, rhs: RHS) -> Self::Output;
 }
 
+
+/// Shift right in place, set self to 0 if the number of bits shifted are
+/// higher than the width of the type
+///
+/// This does the same as the `std::ops::ShrAssign` trait for most types.
+/// it is specialized for integer types to return zero on over- or underflow.
 pub trait ShrSaturateAssign<RHS=usize> {
+    /// shift right in place, set self to 0 if the number of bits shifted are
+    /// higher than the width of the type
     fn shr_assign_saturate(&mut self, rhs: RHS);
 }
 
@@ -457,12 +759,27 @@ impl<R, T: ShrAssign<R>> ShrSaturateAssign<R> for T {
     default fn shr_assign_saturate(&mut self, rhs: R) { *self >>= rhs; }
 }
 
+/// Shift left, return 0 if the number of bits shifted are higher than the
+/// width of the type
+///
+/// This does the same as the `std::ops::Shl` trait for most types.
+/// it is specialized for integer types to return zero on over- or underflow.
 pub trait ShlSaturate<RHS=usize> {
+    /// the return type of our shift operation
     type Output;
+    /// shift left, return 0 if the number of bits shifted are higher than the
+    /// width of the type
     fn shl_saturate(self, rhs: RHS) -> Self::Output;
 }
 
+/// Shift left in place, set self to 0 if the number of bits shifted are
+/// higher than the width of the type
+///
+/// This does the same as the `std::ops::ShlAssign` trait for most types.
+/// it is specialized for integer types to return zero on over- or underflow.
 pub trait ShlAssignSaturate<RHS=usize> {
+    /// shift left in place, set self to 0 if the number of bits shifted are
+    /// higher than the width of the type    
     fn shl_assign_saturate(&mut self, rhs: RHS);
 }
 
@@ -475,8 +792,15 @@ impl<R, T: ShlAssign<R>> ShlAssignSaturate<R> for T {
     default fn shl_assign_saturate(&mut self, rhs: R) { *self <<= rhs; }
 }
 
+/// Shift left, panic if bits are shifted out of the value
+///
+/// This does the same as the `std::ops::Shl` trait for most types.
+/// it is specialized for integer types to panic on over- or underflow.
 pub trait ShlPanic<RHS=usize> {
+    /// the result type of our left shift
     type Output;
+    
+    /// shift left, panic if bits are shifted out of the value
     fn shl_panic(self, rhs: RHS) -> Self::Output;
 }
 
@@ -487,7 +811,12 @@ impl<T, R> ShlPanic<R> for T where T: Shl<R> {
     }
 }
 
+/// Shift left in place, panic if bits are shifted out of the value
+///
+/// This does the same as the `std::ops::Shl` trait for most types.
+/// it is specialized for integer types to panic on over- or underflow.
 pub trait ShlAssignPanic<RHS=usize> {
+    /// Shift left in place, panic if bits are shifted out of the value
     fn shl_assign_panic(&mut self, rhs: RHS);
 }
 
@@ -497,7 +826,14 @@ impl<T, R> ShlAssignPanic<R> for T where T: ShlAssign<R> {
     }
 }
 
+/// Shift right in place, set self to 0 if the number of bits shifted are
+/// higher than the width of the type
+///
+/// This does the same as the `std::ops::ShlAssign` trait for most types.
+/// it is specialized for integer types to return zero on over- or underflow.
 pub trait ShrAssignSaturate<RHS=usize> {
+    /// shift right in place, set self to 0 if the number of bits shifted are
+    /// higher than the width of the type
     fn shr_assign_saturate(&mut self, rhs: RHS);
 }
 
@@ -691,9 +1027,14 @@ saturate_shl_signed!(i32, std::i32::MAX, std::i32::MIN, 31);
 saturate_shl_signed!(i64, std::i64::MAX, std::i64::MIN, 64);
 saturate_shl_signed!(isize, std::isize::MAX, std::isize::MIN, ISIZE_BITS);
 
-#[doc(hidden)]
+/// Negate a value, panic on overflow
+///
+/// This does the same as the `std::ops::Neg` trait for most types.
+/// it is specialized for integer types to panic on overflow.
 pub trait NegPanic {
+    /// the result type of the negation
     type Output;
+    /// negate a value, panic on overflow
     fn neg_panic(self) -> Self::Output;
 }
 
@@ -721,9 +1062,14 @@ neg_panic!(i32);
 neg_panic!(i64);
 neg_panic!(isize);
 
-#[doc(hidden)]
+/// Negate a value, wrap on overflow
+///
+/// This does the same as the `std::ops::Neg` trait for most types.
+/// it is specialized for integer types to wrap on overflow.
 pub trait NegWrap {
+    /// the result type of the negation
     type Output;
+    /// negate a value, wrap on overflow
     fn neg_wrap(self) -> Self::Output;
 }
 
@@ -750,7 +1096,12 @@ neg_wrap!(i32);
 neg_wrap!(i64);
 neg_wrap!(isize);
 
+/// Negate a value, saturate on overflow
+///
+/// This does the same as the `std::ops::Neg` trait for most types.
+/// it is specialized for integer types to saturate on overflow.
 pub trait NegSaturate {
+    /// negate a value, saturate on overflow    
     fn neg_saturate(self) -> Self;
 }
 
@@ -770,15 +1121,28 @@ neg_saturate!(i32, std::i32::MIN, std::i32::MAX);
 neg_saturate!(i64, std::i64::MIN, std::i64::MAX);
 neg_saturate!(isize, std::isize::MIN, std::isize::MAX);
 
+/// Compute the absolute value of `self`, panicking on overflow
+///
+/// This does the same as the `std::i*::abs(_)` methods, but panics on overflow
 pub trait AbsPanic {
+    /// compute the absolute value of `self`, panicking on overflow    
     fn abs_panic(self) -> Self;
 }
 
+/// Compute the absolute value of `self`, wrapping on overflow
+///
+/// This does the same as the `std::i*::abs(_)` methods, but wraps on overflow
 pub trait AbsWrap {
+    /// compute the absolute value of `self`, wrapping on overflow    
     fn abs_wrap(self) -> Self;
 }
 
+/// Compute the absolute value of `self`, saturating on overflow
+///
+/// This does the same as the `std::i*::abs(_)` methods, but saturates on
+/// overflow
 pub trait AbsSaturate {
+    /// compute the absolute value of `self`, saturating on overflow
     fn abs_saturate(self) -> Self;
 }
 

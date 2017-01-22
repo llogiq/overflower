@@ -1,16 +1,20 @@
 [package]
 name = "overflower"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/llogiq/overflower"
 description = "A compiler plugin to easily select overflow behavior for all integer operations of an item"
 readme = "README.md"
 keywords = ["arithmetic", "overflow", "plugin"]
+categories = ["development-tools"]
+
+[badges]
+travis-ci = { repository = "llogiq/overflower" }
 
 [lib]
 crate-type = [ "dylib" ]
 plugin = true
 
 [dependencies]
-overflower_support = { version = "0.1.4", path = "support" }
+overflower_support = { version = "0.1.5", path = "support" }
