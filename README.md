@@ -17,7 +17,8 @@ To use it, you need the following in your Cargo.toml:
 
 ```toml
 [dependencies]
-overflower = "0.1.3"
+overflower = "0.3.2"
+overflower_support = "0.1.5"
 ```
 
 You may also make it an optional dependency (`overflower = { version = "0.1.1", 
@@ -52,7 +53,7 @@ In case of an optional dependency, you'd add the following instead:
 #![cfg_attr(feature="overflower", feature(plugin))]
 #![cfg_attr(feature="overflower", plugin(overflower))]
 
-#[cfg(feature="flamer")
+#[cfg(feature="overflower")
 extern crate overflower_support;
 
 // as well as the following instead of e.g. `#[overflow(wrap)]`
