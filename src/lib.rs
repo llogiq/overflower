@@ -173,8 +173,9 @@ fn is_abs(p: &Path) -> bool {
         options.iter().any(|o| o == &name)
     }
     let segs = &p.segments;
-    segs.len() == 2 && any_of(&segs[1], &["i8", "i16", "i32", "i64", "isize"])
-            && any_of(&segs[2], &["abs"])
+    let len = segs.len();
+    len >= 2 && any_of(&segs[len - 2], &["i8", "i16", "i32", "i64", "isize"])
+            && any_of(&segs[len - 1], &["abs"])
 }
 
 fn parse_mode_str(w: &Symbol, span: Span)

@@ -28,3 +28,9 @@ fn test_simple_panic_sub() {
 fn test_simple_panic_add() {
     255u8 + 1;
 }
+
+#[test]
+#[overflow(wrap)]
+fn test_simple_wrap_abs() {
+    i8::abs(-128 as i8);
+}
