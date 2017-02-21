@@ -1,6 +1,6 @@
 [package]
 name = "overflower"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/llogiq/overflower"
