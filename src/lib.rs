@@ -155,16 +155,10 @@ fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>, outer: Span, o
     let crate_name = o.cx.ident_of("overflower_support");
     let trait_name = o.cx.ident_of(&get_trait_name(o.mode, name));
     let fn_name = o.cx.ident_of(&format!("{}_{}", name, o.mode));
-    let pspan = marked(o, op);
-    let path = o.cx.path(pspan, vec![crate_name, trait_name, fn_name]);
+    let path = o.cx.path(op, vec![crate_name, trait_name, fn_name]);
     let epath = o.cx.expr_path(path);
     let args_expanded = o.fold_exprs(args);
-    let span = marked(o, outer);
-    o.cx.expr_call(span, epath, args_expanded)
-}
-
-fn marked(o: &mut Overflower, span: Span) -> Span {
-    Span { expn_id: o.cx.backtrace(), ..span }
+    o.cx.expr_call(outer, epath, args_expanded)
 }
 
 fn is_abs(p: &Path) -> bool {
