@@ -6,7 +6,7 @@ extern crate syntax;
 use std::fmt::{self, Display, Formatter};
 
 use rustc_plugin::registry::Registry;
-use syntax::codemap::{BytePos, Span, Spanned};
+use syntax::codemap::{Span, Spanned};
 use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Lit,
                   LitKind, Mac, MetaItem, MetaItemKind, NestedMetaItemKind,
                   Path, PathSegment, Stmt, StmtKind, UnOp};
@@ -79,11 +79,7 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
 
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
         if self.mode == Mode::DontCare { return expr; }
-        match expr.unwrap() {
-            e@Expr { node: ExprKind::Mac(_), .. } => {
-                let expanded = self.cx.expander().fold_expr(P(e));
-                self.fold_expr(expanded)
-            }
+        expr.map(|expr| match expr {
             Expr { id, node: ExprKind::Call(path, args), span, attrs } => {
                 if args.len() == 1 {
                     let pspan = path.span;
@@ -93,8 +89,8 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
                         }
                     }
                 }
-                P(fold::noop_fold_expr(Expr { id: id, node: ExprKind::Call(path, args),
-                        span: span, attrs: attrs }, self))
+                fold::noop_fold_expr(Expr { id: id, node: ExprKind::Call(path, args),
+                        span: span, attrs: attrs }, self)
             }
             Expr { node: ExprKind::Binary( Spanned { node: BinOpKind::Add, span: op }, l, r), span, .. } => {
                 tag_method(self, "add", vec![l, r], span, op)
@@ -119,7 +115,7 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
             }
             Expr { node: ExprKind::Unary(UnOp::Neg, arg), span, .. } => {
                 // yes, this span handling is ugly, but we don't have op spans on unary minus
-                tag_method(self, "neg", vec![arg], span, Span { hi: span.lo + BytePos(1), ..span })
+                tag_method(self, "neg", vec![arg], span, span)
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Add, span: op }, l, r), span, .. } => {
                 tag_method(self, "add_assign", vec![l, r], span, op)
@@ -142,8 +138,8 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shr, span: op }, l, r), span, .. } => {
                 tag_method(self, "shr_assign", vec![l, r], span, op)
             }
-            e => P(fold::noop_fold_expr(e, self)),
-        }
+            e => fold::noop_fold_expr(e, self)
+        })
     }
 
     fn fold_mac(&mut self, mac: Mac) -> Mac {
@@ -151,14 +147,14 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
     }
 }
 
-fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>, outer: Span, op: Span) -> P<Expr> {
+fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>, outer: Span, op: Span) -> Expr {
     let crate_name = o.cx.ident_of("overflower_support");
     let trait_name = o.cx.ident_of(&get_trait_name(o.mode, name));
     let fn_name = o.cx.ident_of(&format!("{}_{}", name, o.mode));
     let path = o.cx.path(op, vec![crate_name, trait_name, fn_name]);
     let epath = o.cx.expr_path(path);
     let args_expanded = o.fold_exprs(args);
-    o.cx.expr_call(outer, epath, args_expanded)
+    o.cx.expr_call(outer, epath, args_expanded).into_inner()
 }
 
 fn is_abs(p: &Path) -> bool {
@@ -231,7 +227,7 @@ pub fn plugin_registrar(reg: &mut Registry) {
             cx.span_err(espan, e);
             Mode::DontCare
         });
-        let mut o = &mut Overflower {
+        let o = &mut Overflower {
             mode: mode,
             cx: cx,
         };
