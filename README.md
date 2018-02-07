@@ -17,7 +17,7 @@ To use it, you need the following in your Cargo.toml:
 
 ```toml
 [dependencies]
-overflower = "0.4.0"
+overflower = "0.4.1"
 overflower_support = "0.1.5"
 ```
 
