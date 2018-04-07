@@ -1,27 +1,27 @@
 # overflower
 
-[![Build Status](https://travis-ci.org/llogiq/overflower.svg)](https://travis-ci.org/llogiq/overflower) 
+[![Build Status](https://travis-ci.org/llogiq/overflower.svg)](https://travis-ci.org/llogiq/overflower)
 [![Current Version](https://img.shields.io/crates/v/overflower.svg)](https://crates.io/crates/overflower)
 
-This project contains a compiler plugin and supporting library to allow the 
-programmer to annotate their code to declare how integer overflows should be 
+This project contains a compiler plugin and supporting library to allow the
+programmer to annotate their code to declare how integer overflows should be
 dealt with.
 
 # Usage
 
-**Note**: This needs a nightly compiler both for the compiler plugin and the 
-supporting library, as the latter makes use of specialization, which is 
+**Note**: This needs a nightly compiler both for the compiler plugin and the
+supporting library, as the latter makes use of specialization, which is
 unstable for now.
 
 To use it, you need the following in your Cargo.toml:
 
 ```toml
 [dependencies]
-overflower = "0.4.1"
+overflower = "0.4.2"
 overflower_support = "0.1.5"
 ```
 
-You may also make it an optional dependency (`overflower = { version = "0.4.0", 
+You may also make it an optional dependency (`overflower = { version = "0.4.2",
 optional = true }`).
 
 Next, in your crate root, you need to add:
