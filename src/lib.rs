@@ -37,14 +37,16 @@ impl Display for Mode {
 }
 
 fn get_trait_name(mode: Mode, method: &str) -> String {
-    let mut me = method.chars();
     let mo = match mode {
             Mode::Wrap => "Wrap",
             Mode::Panic => "Panic",
             Mode::Saturate => "Saturate",
             Mode::DontCare => "Default"
     };
-    me.next().unwrap().to_uppercase().chain(me).chain(mo.chars()).collect()
+    method.split("_").flat_map(|s| {
+        let mut me = s.chars();
+        me.next().unwrap().to_uppercase().chain(me)
+    }).chain(mo.chars()).collect()
 }
 
 struct Overflower<'a, 'cx: 'a> {
@@ -78,7 +80,7 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
     }
 
     fn fold_expr(&mut self, expr: P<Expr>) -> P<Expr> {
-        if self.mode == Mode::DontCare { return expr; }
+        { if self.mode == Mode::DontCare { return expr; } }
         expr.map(|expr| match expr {
             Expr { id, node: ExprKind::Call(path, args), span, attrs } => {
                 if args.len() == 1 {
@@ -118,25 +120,32 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
                 tag_method(self, "neg", vec![arg], span, span)
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Add, span: op }, l, r), span, .. } => {
-                tag_method(self, "add_assign", vec![l, r], span, op)
+                let args = ref_mut(&mut self.cx, l, r);
+                tag_method(self, "add_assign", args, span, op)
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Sub, span: op }, l, r), span, .. } => {
-                tag_method(self, "sub_assign", vec![l, r], span, op)
+                let args = ref_mut(&mut self.cx, l, r);
+                tag_method(self, "sub_assign", args, span, op)
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Mul, span: op }, l, r), span, .. } => {
-                tag_method(self, "mul_assign", vec![l, r], span, op)
+                let args = ref_mut(&mut self.cx, l, r);
+                tag_method(self, "mul_assign", args, span, op)
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Div, span: op }, l, r), span, .. } => {
-                tag_method(self, "div_assign", vec![l, r], span, op)
+                let args = ref_mut(&mut self.cx, l, r);
+                tag_method(self, "div_assign", args, span, op)
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Rem, span: op }, l, r), span, .. } => {
-                tag_method(self, "rem_assign", vec![l, r], span, op)
+                let args = ref_mut(&mut self.cx, l, r);
+                tag_method(self, "rem_assign", args, span, op)
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shl, span: op }, l, r), span, .. } => {
-                tag_method(self, "shl_assign", vec![l, r], span, op)
+                let args = ref_mut(&mut self.cx, l, r);
+                tag_method(self, "shl_assign", args, span, op)
             }
             Expr { node: ExprKind::AssignOp( Spanned { node: BinOpKind::Shr, span: op }, l, r), span, .. } => {
-                tag_method(self, "shr_assign", vec![l, r], span, op)
+                let args = ref_mut(&mut self.cx, l, r);
+                tag_method(self, "shr_assign", args, span, op)
             }
             e => fold::noop_fold_expr(e, self)
         })
@@ -145,6 +154,10 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
     fn fold_mac(&mut self, mac: Mac) -> Mac {
         mac
     }
+}
+
+fn ref_mut(cx: &mut ExtCtxt, l: P<Expr>, r: P<Expr>) -> Vec<P<Expr>> {
+    vec![quote_expr!(cx, &mut $l), r]
 }
 
 fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>, outer: Span, op: Span) -> Expr {
