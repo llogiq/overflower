@@ -159,7 +159,7 @@ fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>, outer: Span, o
 
 fn is_abs(p: &Path) -> bool {
     fn any_of(s: &PathSegment, options: &[&str]) -> bool {
-        let name : &str = &*s.identifier.name.as_str();
+        let name : &str = &*s.ident.name.as_str();
         options.iter().any(|o| o == &name)
     }
     let segs = &p.segments;
@@ -195,11 +195,11 @@ fn parse_mode_lit(lit: &Lit, span: Span) -> Result<Mode, (Span, &'static str)> {
 fn get_mode(mi: &MetaItem) -> Result<Mode, (Span, &'static str)> {
     match mi.node {
         MetaItemKind::NameValue(ref l) => {
-            assert!(mi.name == "overflow");
+            assert!(mi.ident.name == "overflow");
             parse_mode_lit(l, mi.span)
         }
         MetaItemKind::List(ref list) => {
-            assert!(mi.name == "overflow");
+            assert!(mi.ident.name == "overflow");
             if list.len() != 1 {
                 return Err((mi.span, "Expected exactly one argument to `#[overflow(_)]`"))
             }
@@ -207,7 +207,7 @@ fn get_mode(mi: &MetaItem) -> Result<Mode, (Span, &'static str)> {
                 NestedMetaItemKind::Literal(ref l) => parse_mode_lit(l, mi.span),
                 NestedMetaItemKind::MetaItem(ref i) => {
                     if let MetaItemKind::Word = i.node {
-                        parse_mode_str(&i.name, mi.span)
+                        parse_mode_str(&i.ident.name, mi.span)
                     } else {
                         Err((mi.span, "overflower does not do nested attributes"))
                     }
@@ -238,6 +238,10 @@ pub fn plugin_registrar(reg: &mut Registry) {
                 i.map(|i| o.fold_trait_item(i).expect_one("expected exactly one item"))),
             Annotatable::ImplItem(i) => Annotatable::ImplItem(
                 i.map(|i| o.fold_impl_item(i).expect_one("expected exactly one item"))),
+            Annotatable::Stmt(s) => Annotatable::Stmt(
+                s.map(|s| o.fold_stmt(s).expect_one("expected exactly one stmt"))),
+            Annotatable::Expr(e) => Annotatable::Expr(o.fold_expr(e)),
+            a => a,
         }
     })));
 }
