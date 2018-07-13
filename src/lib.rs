@@ -1,4 +1,4 @@
-#![feature(plugin_registrar, quote, rustc_private)]
+#![feature(plugin_registrar, rustc_private)]
 
 extern crate rustc_plugin;
 extern crate syntax;
@@ -6,7 +6,7 @@ extern crate syntax;
 use std::fmt::{self, Display, Formatter};
 
 use rustc_plugin::registry::Registry;
-use syntax::codemap::{Span, Spanned};
+use syntax::codemap::{DUMMY_SP, Span, Spanned};
 use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Lit,
                   LitKind, Mac, MetaItem, MetaItemKind, NestedMetaItemKind,
                   Path, PathSegment, Stmt, StmtKind, UnOp};
@@ -157,7 +157,7 @@ impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
 }
 
 fn ref_mut(cx: &mut ExtCtxt, l: P<Expr>, r: P<Expr>) -> Vec<P<Expr>> {
-    vec![quote_expr!(cx, &mut $l), r]
+    vec![cx.expr_mut_addr_of(DUMMY_SP, l), r]
 }
 
 fn tag_method(o: &mut Overflower, name: &str, args: Vec<P<Expr>>, outer: Span, op: Span) -> Expr {

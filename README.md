@@ -17,11 +17,11 @@ To use it, you need the following in your Cargo.toml:
 
 ```toml
 [dependencies]
-overflower = "0.4.3"
+overflower = "0.4.4"
 overflower_support = "0.1.5"
 ```
 
-You may also make it an optional dependency (`overflower = { version = "0.4.3",
+You may also make it an optional dependency (`overflower = { version = "0.4.4",
 optional = true }`).
 
 Next, in your crate root, you need to add:
