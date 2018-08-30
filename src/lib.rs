@@ -1,21 +1,23 @@
 #![feature(plugin_registrar, rustc_private)]
 
+extern crate rustc_data_structures;
 extern crate rustc_plugin;
 extern crate syntax;
 
 use std::fmt::{self, Display, Formatter};
 
+use rustc_data_structures::small_vec::ExpectOne;
 use rustc_plugin::registry::Registry;
-use syntax::codemap::{DUMMY_SP, Span, Spanned};
+use syntax::source_map::{DUMMY_SP, Span, Spanned};
 use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Lit,
                   LitKind, Mac, MetaItem, MetaItemKind, NestedMetaItemKind,
                   Path, PathSegment, Stmt, StmtKind, UnOp};
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
 use syntax::fold::{self, Folder};
+use syntax::OneVector;
 use syntax::symbol::Symbol;
 use syntax::ptr::P;
-use syntax::util::small_vector::SmallVector;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum Mode {
@@ -59,7 +61,7 @@ fn is_stmt_macro(stmt: &Stmt) -> bool {
 }
 
 impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
-    fn fold_item(&mut self, item: P<Item>) -> SmallVector<P<Item>> {
+    fn fold_item(&mut self, item: P<Item>) -> OneVector<P<Item>> {
         if let ItemKind::Mac(_) = item.node {
             let expanded = self.cx.expander().fold_item(item);
             expanded.into_iter()
