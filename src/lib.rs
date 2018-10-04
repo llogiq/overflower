@@ -1,13 +1,13 @@
 #![feature(plugin_registrar, rustc_private)]
 
-extern crate rustc_data_structures;
+extern crate smallvec;
 extern crate rustc_plugin;
 extern crate syntax;
 
 use std::fmt::{self, Display, Formatter};
 
-use rustc_data_structures::small_vec::ExpectOne;
 use rustc_plugin::registry::Registry;
+use smallvec::SmallVec;
 use syntax::source_map::{DUMMY_SP, Span, Spanned};
 use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Lit,
                   LitKind, Mac, MetaItem, MetaItemKind, NestedMetaItemKind,
@@ -15,7 +15,6 @@ use syntax::ast::{BinOpKind, Block, Expr, ExprKind, Item, ItemKind, Lit,
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
 use syntax::ext::build::AstBuilder;
 use syntax::fold::{self, Folder};
-use syntax::OneVector;
 use syntax::symbol::Symbol;
 use syntax::ptr::P;
 
@@ -61,7 +60,7 @@ fn is_stmt_macro(stmt: &Stmt) -> bool {
 }
 
 impl<'a, 'cx> Folder for Overflower<'a, 'cx> {
-    fn fold_item(&mut self, item: P<Item>) -> OneVector<P<Item>> {
+    fn fold_item(&mut self, item: P<Item>) -> SmallVec<[P<Item>; 1]> {
         if let ItemKind::Mac(_) = item.node {
             let expanded = self.cx.expander().fold_item(item);
             expanded.into_iter()
@@ -233,6 +232,11 @@ fn get_mode(mi: &MetaItem) -> Result<Mode, (Span, &'static str)> {
     }
 }
 
+fn expect_one<T>(one: SmallVec<[T; 1]>) -> T {
+    if one.len() != 1 { panic!("Expected exactly one item"); }
+    one.into_iter().next().unwrap()
+}
+
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
     reg.register_syntax_extension(Symbol::intern("overflow"),
@@ -247,14 +251,12 @@ pub fn plugin_registrar(reg: &mut Registry) {
             cx: cx,
         };
         match a {
-            Annotatable::Item(i) => Annotatable::Item(
-                o.fold_item(i).expect_one("expected exactly one item")),
-            Annotatable::TraitItem(i) => Annotatable::TraitItem(
-                i.map(|i| o.fold_trait_item(i).expect_one("expected exactly one item"))),
-            Annotatable::ImplItem(i) => Annotatable::ImplItem(
-                i.map(|i| o.fold_impl_item(i).expect_one("expected exactly one item"))),
-            Annotatable::Stmt(s) => Annotatable::Stmt(
-                s.map(|s| o.fold_stmt(s).expect_one("expected exactly one stmt"))),
+            Annotatable::Item(i) => Annotatable::Item(expect_one(o.fold_item(i))),
+            Annotatable::TraitItem(i) => Annotatable::TraitItem(i.map(|i|
+                expect_one(o.fold_trait_item(i)))),
+            Annotatable::ImplItem(i) => Annotatable::ImplItem(i.map(|i|
+                expect_one(o.fold_impl_item(i)))),
+            Annotatable::Stmt(s) => Annotatable::Stmt(s.map(|s| expect_one(o.fold_stmt(s)))),
             Annotatable::Expr(e) => Annotatable::Expr(o.fold_expr(e)),
             a => a,
         }
