@@ -1,6 +1,6 @@
-#![feature(plugin)]
-#![plugin(overflower)]
+#![allow(const_err, unused)]
 
+#[macro_use] extern crate overflower;
 extern crate overflower_support;
 
 macro_rules! id {
