@@ -8,6 +8,15 @@ use syn::fold::{self, Fold};
 use syn::parse::{Parse, ParseStream, Result};
 use syn::*;
 
+// This is a helper to allow us to parse attributes
+struct OverflowerAttr(Vec<Attribute>);
+
+impl Parse for OverflowerAttr {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(OverflowerAttr(input.call(Attribute::parse_outer)?))
+    }
+}
+
 #[derive(Copy, Clone)]
 enum Overflower {
     Wrap,
@@ -182,6 +191,20 @@ impl Overflower {
         }
         Expr::Call(c)
     }
+
+    fn make_macro(&mut self, m: ExprMacro) -> Expr {
+        if self.is_overflow(&m.attrs) {
+            return Expr::Macro(m);
+        }
+        let mut m = m;
+        m.attrs.extend(syn::parse_str::<OverflowerAttr>(match *self {
+            Overflower::Wrap => "#[overflow(wrap)]",
+            Overflower::Panic => "#[overflow(panic)]",
+            Overflower::Saturate => "#[overflow(saturate)]",
+            Overflower::Default => "#[overflow(default)]"
+        }).unwrap().0);
+        Expr::Macro(m)
+    }
 }
 
 impl Fold for Overflower {
@@ -254,7 +277,7 @@ impl Fold for Overflower {
             Expr::Reference(r) => foldexpr!(self, Expr::Reference, r, fold::fold_expr_reference),
             Expr::Break(b) => foldexpr!(self, Expr::Break, b, fold::fold_expr_break),
             Expr::Return(r) => foldexpr!(self, Expr::Return, r, fold::fold_expr_return),
-            Expr::Macro(m) => foldexpr!(self, Expr::Macro, m, fold::fold_expr_macro),
+            Expr::Macro(m) => self.make_macro(m),
             Expr::Struct(s) => foldexpr!(self, Expr::Struct, s, fold::fold_expr_struct),
             Expr::Repeat(r) => foldexpr!(self, Expr::Repeat, r, fold::fold_expr_repeat),
             Expr::Paren(p) => foldexpr!(self, Expr::Paren, p, fold::fold_expr_paren),
