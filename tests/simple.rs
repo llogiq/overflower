@@ -1,6 +1,4 @@
-#![feature(plugin)]
-#![plugin(overflower)]
-
+#[macro_use] extern crate overflower;
 extern crate overflower_support;
 
 #[test]
