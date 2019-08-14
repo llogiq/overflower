@@ -18,4 +18,4 @@ proc_macro = true
 [dependencies]
 overflower_support = { version = "0.1.5", path = "support" }
 syn = { version = "1.0.1", features = ["extra-traits", "full", "fold", "parsing", "proc-macro"] }
-quote = "0.6.9"
+quote = "1.0.0"
