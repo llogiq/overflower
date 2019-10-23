@@ -4,18 +4,27 @@
 //! The traits are:
 //! * AddPanic, SubPanic, MulPanic, DivPanic, RemPanic, ShlPanic, ShrPanic, NegPanic
 //! * AddWrap, SubWrap, Mulwrap, DivWrap, RemWrap, ShlWrap, ShrWrap, NegWrap
-//! * AddSaturate, SubSaturate, MulSaturate
+//! * AddSaturate, SubSaturate, MulSaturate, DivSaturate, RemSaturate, ShlSaturate,
+//!   ShrSaturate, NegSaturate
 //!
 //! The `*Panic` traits all panic on overflow, the `*Wrap` traits wrap around and the
 //! `*Saturate` traits saturate.
 //!
-//! Note: This needs a nightly compiler because it uses the specialization feature.
+//! Note: You can use this with a stable Rust version, but if you have any annotated code
+//! containing an arithmetic operation over any custom type, you'll have to use the `impls!`
+//! macro to get the traits implemented for the type or use a nightly Rust and add the
+//! `specialization` feature.
 
-#![feature(specialization)]
-#![deny(missing_docs)]
+#![cfg_attr(feature = "specialization", feature(specialization))]
+#![cfg_attr(feature = "specialization", feature(specialization))]
+#![cfg_attr(feature = "wrapping_int_impl", feature(wrapping_int_impl))]
+#![deny(missing_docs, unsafe_code)]
 
 use std::ops::*;
 use std::cmp::*;
+
+#[cfg(feature = "proc_macro")]
+pub use overflower_plugin::overflow;
 
 /// Add two values, panicking on overflow
 ///
@@ -74,6 +83,7 @@ pub trait RemPanic<RHS = Self> {
 
 macro_rules! panic_biself {
     ($trait_name:ident, $trait_panic:ident, $fn_name:ident, $fn_panic:ident, $checked_fn:ident) => {
+        #[cfg(feature = "specialization")]
         impl<T, R> $trait_panic<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_panic(self, rhs: R) -> Self::Output {
@@ -94,8 +104,41 @@ macro_rules! panic_biself {
     };
     ($trait_panic:ident, $fn_panic:ident, $checked_fn:ident, $ty:ty) => {
         impl $trait_panic<$ty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn $fn_panic(self, rhs: $ty) -> $ty {
                 if let Some(x) = self.$checked_fn(rhs) { x }
+                else { panic!("arithmetic overflow") }
+            }
+        }
+
+        impl $trait_panic<$ty> for &$ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
+            fn $fn_panic(self, rhs: $ty) -> $ty {
+                if let Some(x) = self.$checked_fn(rhs) { x }
+                else { panic!("arithmetic overflow") }
+            }
+        }
+
+        impl $trait_panic<&$ty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
+            fn $fn_panic(self, rhs: &$ty) -> $ty {
+                if let Some(x) = self.$checked_fn(*rhs) { x }
+                else { panic!("arithmetic overflow") }
+            }
+        }
+
+        impl $trait_panic<&$ty> for &$ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
+            fn $fn_panic(self, rhs: &$ty) -> $ty {
+                if let Some(x) = self.$checked_fn(*rhs) { x }
                 else { panic!("arithmetic overflow") }
             }
         }
@@ -155,6 +198,7 @@ pub trait RemAssignPanic<RHS = Self> {
 
 macro_rules! panic_assign_biself {
     ($trait_name:ident, $trait_panic:ident, $fn_name:ident, $fn_panic:ident, $checked_fn:ident) => {
+        #[cfg(feature = "specialization")]
         impl<T, R> $trait_panic<R> for T where T: $trait_name<R> {
             default fn $fn_panic(&mut self, rhs: R) {
                 std::ops::$trait_name::$fn_name(self, rhs)
@@ -194,7 +238,7 @@ panic_assign_biself!(RemAssign, RemAssignPanic, rem_assign, rem_assign_panic, ch
 pub trait AddWrap<RHS = Self> {
     /// The result type of the addition
     type Output;
-    
+
     /// add two values, wrap on overflow
     fn add_wrap(self, rhs: RHS) -> Self::Output;
 }
@@ -204,7 +248,7 @@ pub trait AddWrap<RHS = Self> {
 /// This trait does the same as `std::ops::Sub` for most values.
 /// it is specialized for integer types to wrap on over- or underflow.
 pub trait SubWrap<RHS = Self> {
-    /// The result type of the subtraction    
+    /// The result type of the subtraction
     type Output;
 
     /// subtract two values, wrap on overflow
@@ -216,7 +260,7 @@ pub trait SubWrap<RHS = Self> {
 /// This trait does the same as `std::ops::Mul` for most values.
 /// it is specialized for integer types to wrap on over- or underflow.
 pub trait MulWrap<RHS = Self> {
-    /// The result type of the multiplication    
+    /// The result type of the multiplication
     type Output;
 
     /// multiply two values, wrap on overflow
@@ -228,7 +272,7 @@ pub trait MulWrap<RHS = Self> {
 /// This trait does the same as `std::ops::Div` for most values.
 /// it is specialized for integer types to wrap on over- or underflow.
 pub trait DivWrap<RHS = Self> {
-    /// The result type of the division   
+    /// The result type of the division
     type Output;
 
     /// divide two values, wrap on overflow
@@ -240,7 +284,7 @@ pub trait DivWrap<RHS = Self> {
 /// This trait does the same as `std::ops::Rem` for most values.
 /// it is specialized for integer types to wrap on over- or underflow.
 pub trait RemWrap<RHS = Self> {
-    /// The result type of the division remainder   
+    /// The result type of the division remainder
     type Output;
 
     /// divide two values and get the remainder, wrap on overflow
@@ -249,6 +293,7 @@ pub trait RemWrap<RHS = Self> {
 
 macro_rules! wrap_biself {
     ($trait_name:ident, $trait_wrap:ident, $fn_name:ident, $fn_wrap:ident, $wrapped_fn:ident) => {
+        #[cfg(feature = "specialization")]
         impl<T, R> $trait_wrap<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_wrap(self, rhs: R) -> Self::Output {
@@ -269,8 +314,37 @@ macro_rules! wrap_biself {
     };
     ($trait_wrap:ident, $fn_wrap:ident, $wrapped_fn:ident, $ty:ty) => {
         impl $trait_wrap<$ty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn $fn_wrap(self, rhs: $ty) -> $ty {
                 self.$wrapped_fn(rhs)
+            }
+        }
+
+        impl $trait_wrap<&$ty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
+            fn $fn_wrap(self, rhs: &$ty) -> $ty {
+                self.$wrapped_fn(*rhs)
+            }
+        }
+
+        impl $trait_wrap<$ty> for &$ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
+            fn $fn_wrap(self, rhs: $ty) -> $ty {
+                self.$wrapped_fn(rhs)
+            }
+        }
+        impl $trait_wrap<&$ty> for &$ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
+            fn $fn_wrap(self, rhs: &$ty) -> $ty {
+                self.$wrapped_fn(*rhs)
             }
         }
     }
@@ -330,6 +404,7 @@ pub trait RemAssignWrap<RHS = Self> {
 
 macro_rules! wrap_assign_biself {
     ($trait_name:ident, $trait_wrap:ident, $fn_name:ident, $fn_wrap:ident, $wrapped_fn:ident) => {
+        #[cfg(feature = "specialization")]
         impl<T, R> $trait_wrap<R> for T where T: $trait_name<R> {
             default fn $fn_wrap(&mut self, rhs: R) {
                 std::ops::$trait_name::$fn_name(self, rhs)
@@ -371,7 +446,7 @@ wrap_assign_biself!(RemAssign, RemAssignWrap, rem_assign, rem_assign_wrap, wrapp
 pub trait AddSaturate<RHS = Self> {
     /// The result type of the addition
     type Output;
-    
+
     /// add two values, saturate on overflow
     fn add_saturate(self, rhs: RHS) -> Self::Output;
 }
@@ -381,7 +456,7 @@ pub trait AddSaturate<RHS = Self> {
 /// This trait does the same as `std::ops::Sub` for most values.
 /// it is specialized for integer types to saturate on over- or underflow.
 pub trait SubSaturate<RHS = Self> {
-    /// The result type of the subtraction    
+    /// The result type of the subtraction
     type Output;
 
     /// subtract two values, saturate on overflow
@@ -393,7 +468,7 @@ pub trait SubSaturate<RHS = Self> {
 /// This trait does the same as `std::ops::Mul` for most values.
 /// it is specialized for integer types to saturate on over- or underflow.
 pub trait MulSaturate<RHS = Self> {
-    /// The result type of the multiplication    
+    /// The result type of the multiplication
     type Output;
 
     /// multiply two values, saturate on overflow
@@ -405,7 +480,7 @@ pub trait MulSaturate<RHS = Self> {
 /// This trait does the same as `std::ops::Div` for most values.
 /// it is specialized for integer types to saturate on over- or underflow.
 pub trait DivSaturate<RHS = Self> {
-    /// The result type of the division   
+    /// The result type of the division
     type Output;
 
     /// divide two values, saturate on overflow
@@ -417,16 +492,63 @@ pub trait DivSaturate<RHS = Self> {
 /// This trait does the same as `std::ops::Rem` for most values.
 /// it is specialized for integer types to saturate on over- or underflow.
 pub trait RemSaturate<RHS = Self> {
-    /// The result type of the division remainder   
+    /// The result type of the division remainder
     type Output;
 
     /// divide two values and get the remainder, saturate on overflow
     fn rem_saturate(self, rhs: RHS) -> Self::Output;
 }
 
+/// Add a value to a given value in-place, saturating on overflow
+///
+/// This trait does the same as the `std::ops::AddAssign` trait for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait AddAssignSaturate<RHS = Self> {
+    /// add a value to a given value in-place, saturating on overflow
+    fn add_assign_saturate(&mut self, rhs: RHS);
+}
+
+/// Subtract a value from a given value in-place, saturating on overflow
+///
+/// This trait does the same as the `std::ops::SubAssign` trait for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait SubAssignSaturate<RHS = Self> {
+    /// subtract a value from a given value in-place, saturating on overflow
+    fn sub_assign_saturate(&mut self, rhs: RHS);
+}
+
+/// Multiply a value with a given value in-place, saturating on overflow
+///
+/// This trait does the same as the `std::ops::MulAssign` trait for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait MulAssignSaturate<RHS = Self> {
+    /// multiply a value with a given value in-place, saturating on overflow
+    fn mul_assign_saturate(&mut self, rhs: RHS);
+}
+
+/// Divide a value by a given value in-place, saturating on overflow
+///
+/// This trait does the same as the `std::ops::DivAssign` trait for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait DivAssignSaturate<RHS = Self> {
+    /// divide a value by a given value in-place, saturating on overflow
+    fn div_assign_saturate(&mut self, rhs: RHS);
+}
+
+/// Divide a value to a given value, getting the remainder in-place, saturating
+/// on overflow
+///
+/// This trait does the same as the `std::ops::RemAssign` trait for most values.
+/// it is specialized for integer types to saturate on over- or underflow.
+pub trait RemAssignSaturate<RHS = Self> {
+    /// get the remainder of a division in place, saturating on overflow
+    fn rem_assign_saturate(&mut self, rhs: RHS);
+}
+
 
 macro_rules! saturate_biself {
     ($trait_name:ident, $trait_saturate:ident, $fn_name:ident, $fn_saturate:ident, $saturated_fn:ident) => {
+        #[cfg(feature = "specialization")]
         impl<T, R> $trait_saturate<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_saturate(self, rhs: R) -> Self::Output {
@@ -447,8 +569,38 @@ macro_rules! saturate_biself {
     };
     ($trait_saturate:ident, $fn_saturate:ident, $saturated_fn:ident, $ty:ty) => {
         impl $trait_saturate<$ty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn $fn_saturate(self, rhs: $ty) -> $ty {
                 self.$saturated_fn(rhs)
+            }
+        }
+
+        impl $trait_saturate<$ty> for &$ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
+            fn $fn_saturate(self, rhs: $ty) -> $ty {
+                self.$saturated_fn(rhs)
+            }
+        }
+
+        impl $trait_saturate<&$ty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
+            fn $fn_saturate(self, rhs: &$ty) -> $ty {
+                self.$saturated_fn(*rhs)
+            }
+        }
+
+        impl $trait_saturate<&$ty> for &$ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
+            fn $fn_saturate(self, rhs: &$ty) -> $ty {
+                self.$saturated_fn(*rhs)
             }
         }
     }
@@ -458,6 +610,45 @@ saturate_biself!(Add, AddSaturate, add, add_saturate, saturating_add);
 saturate_biself!(Sub, SubSaturate, sub, sub_saturate, saturating_sub);
 saturate_biself!(Mul, MulSaturate, mul, mul_saturate, saturating_mul);
 
+
+macro_rules! saturate_assign_biself {
+    ($trait_name:ident, $trait_saturate:ident, $fn_name:ident, $fn_saturate:ident, $saturated_fn:ident) => {
+        #[cfg(feature = "specialization")]
+        impl<T, R> $trait_saturate<R> for T where T: $trait_name<R> {
+            default fn $fn_saturate(&mut self, rhs: R) {
+                std::ops::$trait_name::$fn_name(self, rhs)
+            }
+        }
+
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, u8);
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, u16);
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, u32);
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, u64);
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, usize);
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, i8);
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, i16);
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, i32);
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, i64);
+        saturate_assign_biself!($trait_saturate, $fn_saturate, $saturated_fn, isize);
+    };
+    ($trait_saturate:ident, $fn_saturate:ident, $saturated_fn:ident, $ty:ty) => {
+        impl $trait_saturate<$ty> for $ty {
+            fn $fn_saturate(&mut self, rhs: $ty) {
+                *self = self.$saturated_fn(rhs);
+            }
+        }
+    }
+}
+
+saturate_assign_biself!(AddAssign, AddAssignSaturate, add_assign, add_assign_saturate, saturating_add);
+saturate_assign_biself!(SubAssign, SubAssignSaturate, sub_assign, sub_assign_saturate, saturating_sub);
+saturate_assign_biself!(MulAssign, MulAssignSaturate, mul_assign, mul_assign_saturate, saturating_mul);
+// TODO: by zero → min/max value depending on sign
+saturate_assign_biself!(DivAssign, DivAssignSaturate, div_assign, div_assign_saturate, div);
+saturate_assign_biself!(RemAssign, RemAssignSaturate, rem_assign, rem_assign_saturate, rem);
+
+
+#[cfg(feature = "specialization")]
 impl<R, T: Div<R>> DivSaturate<R> for T {
     type Output = <T as Div<R>>::Output;
     default fn div_saturate(self, rhs: R) -> Self::Output {
@@ -465,6 +656,7 @@ impl<R, T: Div<R>> DivSaturate<R> for T {
     }
 }
 
+#[cfg(feature = "specialization")]
 impl<R, T: Rem<R>> RemSaturate<R> for T {
     type Output = <T as Rem<R>>::Output;
     default fn rem_saturate(self, rhs: R) -> Self::Output {
@@ -476,6 +668,9 @@ macro_rules! saturate_signed {
     ($ty:ty, $min:path, $max:path) => {
         #[allow(unused_comparisons)]
         impl DivSaturate for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn div_saturate(self, rhs: $ty) -> $ty {
                 match rhs {
                     0 => match self.cmp(&0) {
@@ -490,6 +685,9 @@ macro_rules! saturate_signed {
         }
 
         impl RemSaturate for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn rem_saturate(self, rhs: $ty) -> $ty {
                 if rhs == 0 { if self == 0 { 0 } else { $max }
                 } else { self % rhs }
@@ -502,6 +700,9 @@ macro_rules! saturate_unsigned {
     ($ty:ty, $max:path) => {
         #[allow(unused_comparisons)]
         impl DivSaturate for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn div_saturate(self, rhs: $ty) -> $ty {
                 match rhs {
                     0 => if self == 0 { 0 } else { $max },
@@ -511,6 +712,9 @@ macro_rules! saturate_unsigned {
         }
 
         impl RemSaturate for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn rem_saturate(self, rhs: $ty) -> $ty {
                 if rhs == 0 { if self == 0 { 0 } else { $max }
                 } else { self % rhs }
@@ -540,7 +744,7 @@ pub trait ShrPanic<RHS=usize> {
     type Output;
 
     /// shift right, panic if the number of bits shifted are higher than the
-    /// width of the type    
+    /// width of the type
     fn shr_panic(self, rhs: RHS) -> Self::Output;
 }
 
@@ -551,7 +755,7 @@ pub trait ShrPanic<RHS=usize> {
 /// it is specialized for integer types to panic on over- or underflow.
 pub trait ShrAssignPanic<RHS=usize> {
     /// shift right in place, panic if the number of bits shifted are higher
-    /// than the width of the type        
+    /// than the width of the type
     fn shr_assign_panic(&mut self, rhs: RHS);
 }
 
@@ -565,6 +769,7 @@ macro_rules! panic_shifts {
       $fn_panic:ident,
       $fn_assign_panic:ident,
       $checked_fn:ident) => {
+        #[cfg(feature = "specialization")]
         impl<T, R> $trait_panic<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_panic(self, rhs: R) -> Self::Output {
@@ -572,6 +777,7 @@ macro_rules! panic_shifts {
             }
         }
 
+        #[cfg(feature = "specialization")]
         impl<T, R> $trait_assign_panic<R> for T where T: $trait_assign_name<R> {
             default fn $fn_assign_panic(&mut self, rhs: R) {
                 $trait_assign_name::$fn_assign_name(self, rhs)
@@ -603,6 +809,9 @@ macro_rules! panic_shifts {
     };
     ($trait_panic:ident, $trait_assign_panic:ident, $fn_panic:ident, $fn_assign_panic:ident, $checked_fn:ident, $ty:ty, $rty:ty) => {
         impl $trait_panic<$rty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn $fn_panic(self, rhs: $rty) -> Self::Output {
                 if let Some(x) = self.$checked_fn(rhs as u32) { x } else
                             { panic!("Arithmetic overflow") }
@@ -670,7 +879,7 @@ pub trait ShrAssignWrap<RHS=usize> {
 
 macro_rules! wrap_shifts {
     (@$trait_name:ident, $trait_assign_name:ident, $trait_wrap:ident, $trait_assign_wrap:ident, $fn_name:ident, $fn_assign_name:ident, $fn_wrap:ident, $fn_assign_wrap:ident, $wrapping_fn:ident) => {
-
+        #[cfg(feature = "specialization")]
         impl<T, R> $trait_wrap<R> for T where T: $trait_name<R> {
             type Output = <T as $trait_name<R>>::Output;
             default fn $fn_wrap(self, rhs: R) -> Self::Output {
@@ -678,6 +887,7 @@ macro_rules! wrap_shifts {
             }
         }
 
+        #[cfg(feature = "specialization")]
         impl<T, R> $trait_assign_wrap<R> for T where T: $trait_assign_name<R> {
             default fn $fn_assign_wrap(&mut self, rhs: R) {
                 $trait_assign_name::$fn_assign_name(self, rhs)
@@ -709,6 +919,9 @@ macro_rules! wrap_shifts {
     };
     ($trait_wrap:ident, $trait_assign_wrap:ident, $fn_wrap:ident, $fn_assign_wrap:ident, $wrapping_fn:ident, $ty:ty, $rty:ty) => {
         impl $trait_wrap<$rty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn $fn_wrap(self, rhs: $rty) -> Self::Output {
                 self.$wrapping_fn(rhs as u32)
             }
@@ -750,11 +963,13 @@ pub trait ShrSaturateAssign<RHS=usize> {
     fn shr_assign_saturate(&mut self, rhs: RHS);
 }
 
+#[cfg(feature = "specialization")]
 impl<R, T: Shr<R>> ShrSaturate<R> for T {
     type Output = <T as Shr<R>>::Output;
     default fn shr_saturate(self, rhs: R) -> Self::Output { self >> rhs }
 }
 
+#[cfg(feature = "specialization")]
 impl<R, T: ShrAssign<R>> ShrSaturateAssign<R> for T {
     default fn shr_assign_saturate(&mut self, rhs: R) { *self >>= rhs; }
 }
@@ -779,15 +994,17 @@ pub trait ShlSaturate<RHS=usize> {
 /// it is specialized for integer types to return zero on over- or underflow.
 pub trait ShlAssignSaturate<RHS=usize> {
     /// shift left in place, set self to 0 if the number of bits shifted are
-    /// higher than the width of the type    
+    /// higher than the width of the type
     fn shl_assign_saturate(&mut self, rhs: RHS);
 }
 
+#[cfg(feature = "specialization")]
 impl<R, T: Shl<R>> ShlSaturate<R> for T {
     type Output = <T as Shl<R>>::Output;
     default fn shl_saturate(self, rhs: R) -> Self::Output { self << rhs }
 }
 
+#[cfg(feature = "specialization")]
 impl<R, T: ShlAssign<R>> ShlAssignSaturate<R> for T {
     default fn shl_assign_saturate(&mut self, rhs: R) { *self <<= rhs; }
 }
@@ -799,11 +1016,12 @@ impl<R, T: ShlAssign<R>> ShlAssignSaturate<R> for T {
 pub trait ShlPanic<RHS=usize> {
     /// the result type of our left shift
     type Output;
-    
+
     /// shift left, panic if bits are shifted out of the value
     fn shl_panic(self, rhs: RHS) -> Self::Output;
 }
 
+#[cfg(feature = "specialization")]
 impl<T, R> ShlPanic<R> for T where T: Shl<R> {
     type Output = <T as Shl<R>>::Output;
     default fn shl_panic(self, rhs: R) -> Self::Output {
@@ -820,6 +1038,7 @@ pub trait ShlAssignPanic<RHS=usize> {
     fn shl_assign_panic(&mut self, rhs: RHS);
 }
 
+#[cfg(feature = "specialization")]
 impl<T, R> ShlAssignPanic<R> for T where T: ShlAssign<R> {
     default fn shl_assign_panic(&mut self, rhs: R) {
         ShlAssign::shl_assign(self, rhs)
@@ -852,6 +1071,9 @@ macro_rules! saturate_shl_unsigned {
     };
     ($ty:ty, $max:expr, $bits:expr, $rty:ty) => {
         impl ShlSaturate<$rty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn shl_saturate(self, rhs: $rty) -> Self::Output {
                 if self == 0 { return 0; }
                 if rhs as usize >= $bits || ((!0) >> rhs) < self {
@@ -862,7 +1084,10 @@ macro_rules! saturate_shl_unsigned {
             }
         }
 
-       impl ShrSaturate<$rty> for $ty {
+        impl ShrSaturate<$rty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn shr_saturate(self, rhs: $rty) -> Self::Output {
                 if rhs as usize >= $bits { 0 } else { self >> rhs }
             }
@@ -886,6 +1111,9 @@ macro_rules! saturate_shl_unsigned {
         }
 
         impl ShlPanic<$rty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn shl_panic(self, rhs: $rty) -> Self::Output {
                 if self == 0 { return 0; }
                 if (rhs as usize >= $bits || ((!0) >> rhs) < self) && self != 0 {
@@ -938,6 +1166,9 @@ macro_rules! saturate_shl_signed {
     };
     ($ty:ty, $max:expr, $min:expr, $bits:expr, $rty:ty) => {
         impl ShlSaturate<$rty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn shl_saturate(self, rhs: $rty) -> Self::Output {
                 match self.cmp(&0) {
                     Ordering::Equal => 0,
@@ -952,6 +1183,9 @@ macro_rules! saturate_shl_signed {
         }
 
         impl ShrSaturate<$rty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn shr_saturate(self, rhs: $rty) -> Self::Output {
                 if rhs as usize >= $bits { 0 } else { self >> rhs }
             }
@@ -979,6 +1213,9 @@ macro_rules! saturate_shl_signed {
         }
 
         impl ShlPanic<$rty> for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn shl_panic(self, rhs: $rty) -> Self::Output {
                 match self.cmp(&0) {
                     Ordering::Equal => return 0,
@@ -1038,6 +1275,7 @@ pub trait NegPanic {
     fn neg_panic(self) -> Self::Output;
 }
 
+#[cfg(feature = "specialization")]
 impl<T> NegPanic for T where T: Neg {
     type Output = <T as Neg>::Output;
     default fn neg_panic(self) -> Self::Output {
@@ -1048,6 +1286,9 @@ impl<T> NegPanic for T where T: Neg {
 macro_rules! neg_panic {
     ($ty:ty) => {
         impl NegPanic for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn neg_panic(self) -> Self::Output {
                 if let Some(x) = self.checked_neg() { x }
                 else { panic!("arithmetic overflow") }
@@ -1073,6 +1314,7 @@ pub trait NegWrap {
     fn neg_wrap(self) -> Self::Output;
 }
 
+#[cfg(feature = "specialization")]
 impl<T> NegWrap for T where T: Neg {
     type Output = <T as Neg>::Output;
     default fn neg_wrap(self) -> Self::Output {
@@ -1083,6 +1325,9 @@ impl<T> NegWrap for T where T: Neg {
 macro_rules! neg_wrap {
     ($ty:ty) => {
         impl NegWrap for $ty {
+            #[cfg(not(feature = "specialization"))]
+            type Output = $ty;
+
             fn neg_wrap(self) -> Self::Output {
                 self.wrapping_neg()
             }
@@ -1101,13 +1346,17 @@ neg_wrap!(isize);
 /// This does the same as the `std::ops::Neg` trait for most types.
 /// it is specialized for integer types to saturate on overflow.
 pub trait NegSaturate {
-    /// negate a value, saturate on overflow    
-    fn neg_saturate(self) -> Self;
+    /// the output type of the negation
+    type Output;
+    /// negate a value, saturate on overflow
+    fn neg_saturate(self) -> Self::Output;
 }
 
 macro_rules! neg_saturate {
     ($ty:ty, $min:expr, $max:expr) => {
         impl NegSaturate for $ty {
+            type Output = Self;
+
             fn neg_saturate(self) -> Self {
                 if self == $min { $max } else { -self }
             }
@@ -1125,7 +1374,7 @@ neg_saturate!(isize, std::isize::MIN, std::isize::MAX);
 ///
 /// This does the same as the `std::i*::abs(_)` methods, but panics on overflow
 pub trait AbsPanic {
-    /// compute the absolute value of `self`, panicking on overflow    
+    /// compute the absolute value of `self`, panicking on overflow
     fn abs_panic(self) -> Self;
 }
 
@@ -1133,7 +1382,7 @@ pub trait AbsPanic {
 ///
 /// This does the same as the `std::i*::abs(_)` methods, but wraps on overflow
 pub trait AbsWrap {
-    /// compute the absolute value of `self`, wrapping on overflow    
+    /// compute the absolute value of `self`, wrapping on overflow
     fn abs_wrap(self) -> Self;
 }
 
@@ -1202,29 +1451,238 @@ abs_signed!(i32);
 abs_signed!(i64);
 abs_signed!(isize);
 
-#[cfg(test)]
-mod test {
-    use super::*;
+macro_rules! impls_inner {
+    (op all, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(op add, $ty, $($gen),*);
+        impls_inner!(op sub, $ty, $($gen),*);
+        impls_inner!(op mul, $ty, $($gen),*);
+        impls_inner!(op div, $ty, $($gen),*);
+        impls_inner!(op rem, $ty, $($gen),*);
+        impls_inner!(op shl, $ty, $($gen),*);
+        impls_inner!(op shr, $ty, $($gen),*);
+        impls_inner!(op neg, $ty, $($gen),*);
+        impls_inner!(op add_assign, $ty, $($gen),*);
+        impls_inner!(op sub_assign, $ty, $($gen),*);
+        impls_inner!(op mul_assign, $ty, $($gen),*);
+        impls_inner!(op div_assign, $ty, $($gen),*);
+        impls_inner!(op rem_assign, $ty, $($gen),*);
+        impls_inner!(op shl_assign, $ty, $($gen),*);
+        impls_inner!(op shr_assign, $ty, $($gen),*);
+    };
+    (op add, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(bin +, Add, AddWrap, add_wrap, $ty, $($gen),*);
+        impls_inner!(bin +, Add, AddPanic, add_panic, $ty, $($gen),*);
+        impls_inner!(bin +, Add, AddSaturate, add_saturate, $ty, $($gen),*);
+    };
+    (op sub, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(bin -, Sub, SubWrap, sub_wrap, $ty, $($gen),*);
+        impls_inner!(bin -, Sub, SubPanic, sub_panic, $ty, $($gen),*);
+        impls_inner!(bin -, Sub, SubSaturate, sub_saturate, $ty, $($gen),*);
+    };
+    (op mul, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(bin *, Mul, MulWrap, mul_wrap, $ty, $($gen),*);
+        impls_inner!(bin *, Mul, MulPanic, mul_panic, $ty, $($gen),*);
+        impls_inner!(bin *, Mul, MulSaturate, mul_saturate, $ty, $($gen),*);
+    };
+    (op div, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(bin /, Div, DivWrap, div_wrap, $ty, $($gen),*);
+        impls_inner!(bin /, Div, DivPanic, div_panic, $ty, $($gen),*);
+        impls_inner!(bin /, Div, DivSaturate, div_saturate, $ty, $($gen),*);
+    };
+    (op rem, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(bin %, Rem, RemWrap, rem_wrap, $ty, $($gen),*);
+        impls_inner!(bin %, Rem, RemPanic, rem_panic, $ty, $($gen),*);
+        impls_inner!(bin %, Rem, RemSaturate, rem_saturate, $ty, $($gen),*);
+    };
+    (op shl, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(bin <<, Shl, ShlWrap, shl_wrap, $ty, $($gen),*);
+        impls_inner!(bin <<, Shl, ShlPanic, shl_panic, $ty, $($gen),*);
+        impls_inner!(bin <<, Shl, ShlSaturate, shl_saturate, $ty, $($gen),*);
+    };
+    (op shr, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(bin >>, Shr, ShrWrap, shr_wrap, $ty, $($gen),*);
+        impls_inner!(bin >>, Shr, ShrPanic, shr_panic, $ty, $($gen),*);
+        impls_inner!(bin >>, Shr, ShrSaturate, shr_saturate, $ty, $($gen),*);
+    };
+    (op neg, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(neg Neg, NegWrap, neg_wrap, $ty, $($gen),*);
+        impls_inner!(neg Neg, NegPanic, neg_panic, $ty, $($gen),*);
+        impls_inner!(neg Neg, NegSaturate, neg_saturate, $ty, $($gen),*);
+    };
+    (op abs, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(abs AbsWrap, abs_wrap, $ty, $($gen),*);
+        impls_inner!(abs AbsPanic, abs_panic, $ty, $($gen),*);
+        impls_inner!(abs AbsSaturate, abs_saturate, $ty, $($gen),*);
+    };
+    (op add_assign, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(assign +=, AddAssign, AddAssignWrap, add_assign_wrap, $ty, $($gen),*);
+        impls_inner!(assign +=, AddAssign, AddAssignPanic, add_assign_panic, $ty, $($gen),*);
+        impls_inner!(assign +=, AddAssign, AddAssignSaturate, add_assign_saturate, $ty, $($gen),*);
+    };
+    (op sub_assign, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(assign -=, SubAssign, SubAssignWrap, sub_assign_wrap, $ty, $($gen),*);
+        impls_inner!(assign -=, SubAssign, SubAssignPanic, sub_assign_panic, $ty, $($gen),*);
+        impls_inner!(assign -=, SubAssign, SubAssignSaturate, sub_assign_saturate, $ty, $($gen),*);
+    };
+    (op mul_assign, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(assign *=, MulAssign, MulAssignWrap, mul_assign_wrap, $ty, $($gen),*);
+        impls_inner!(assign *=, MulAssign, MulAssignPanic, mul_assign_panic, $ty, $($gen),*);
+        impls_inner!(assign *=, MulAssign, MulAssignSaturate, mul_assign_saturate, $ty, $($gen),*);
+    };
+    (op div_assign, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(assign /=, DivAssign, DivAssignWrap, div_assign_wrap, $ty, $($gen),*);
+        impls_inner!(assign /=, DivAssign, DivAssignPanic, div_assign_panic, $ty, $($gen),*);
+        impls_inner!(assign /=, DivAssign, DivAssignSaturate, div_assign_saturate, $ty, $($gen),*);
+    };
+    (op rem_assign, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(assign %=, RemAssign, RemAssignWrap, rem_assign_wrap, $ty, $($gen),*);
+        impls_inner!(assign %=, RemAssign, RemAssignPanic, rem_assign_panic, $ty, $($gen),*);
+        impls_inner!(assign %=, RemAssign, RemAssignSaturate, rem_assign_saturate, $ty, $($gen),*);
+    };
+    (op shl_assign, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(assign <<=, ShlAssign, ShlAssignWrap, shl_assign_wrap, $ty, $($gen),*);
+        impls_inner!(assign <<=, ShlAssign, ShlAssignPanic, shl_assign_panic, $ty, $($gen),*);
+        impls_inner!(assign <<=, ShlAssign, ShlAssignSaturate, shl_assign_saturate, $ty, $($gen),*);
+    };
+    (op shr_assign, $ty:ty, $($gen:tt),*) => {
+        impls_inner!(assign >>=, ShrAssign, ShrAssignWrap, shr_assign_wrap, $ty, $($gen),*);
+        impls_inner!(assign >>=, ShrAssign, ShrAssignPanic, shr_assign_panic, $ty, $($gen),*);
+        impls_inner!(assign >>=, ShrAssign, ShrAssignSaturate, shr_assign_saturate, $ty, $($gen),*);
+    };
+    (neg $origtrait:ident, $newtrait:ident, $fun:ident, $ty:ty,) => {
+        impl $newtrait for $ty
+        where $ty: $origtrait {
+            #[cfg(not(feature = "specialization"))]
+            type Output = <$ty as $origtrait>::Output;
 
-    #[test]
-    fn test_add_panic_normal() {
-        assert_eq!(1 + 2, 1.add_panic(2));
-    }
+            fn $fun(self) -> Self::Output {
+                -self
+            }
+        }
+    };
+    (neg $origtrait:ident, $newtrait:ident, $fun:ident, $ty:ty, $($gen:tt),+) => {
+        impl<$($gen),*> $newtrait for $ty
+        where $ty: $origtrait {
+            #[cfg(not(feature = "specialization"))]
+            type Output = <Self as $origtrait>::Output;
 
-    #[test]
-    #[should_panic]
-    fn test_add_panic_panics() {
-        ::std::panic::set_hook(Box::new(|_| ()));
-        255u8.add_panic(2u8);
-    }
+            fn $fun(self) -> Self::Output {
+                -self
+            }
+        }
+    };
+    (abs $newtrait:ident, $fun:ident, $ty:ty,) => {
+        impl $newtrait for $ty {
+            fn $fun(self) -> Self {
+                -self
+            }
+        }
+    };
+    (abs $newtrait:ident, $fun:ident, $ty:ty, $($gen:tt),+) => {
+        impl<$($gen),*> $newtrait for $ty {
+            fn $fun(self) -> Self {
+                -self
+            }
+        }
+    };
+    (bin $op:tt, $origtrait:ident, $newtrait:ident, $fun:ident, $ty:ty,) => {
+        impl<Rhs> $newtrait<Rhs> for $ty
+        where $ty: $origtrait<Rhs> {
+            #[cfg(not(feature = "specialization"))]
+            type Output = <Self as $origtrait<Rhs>>::Output;
 
-    #[test]
-    fn test_sub_wrap() {
-        assert_eq!(255, 1u8.sub_wrap(2));
-    }
+            fn $fun(self, rhs: Rhs) -> Self::Output {
+                self $op rhs
+            }
+        }
+    };
+    (bin $op:tt, $origtrait:ident, $newtrait:ident, $fun:ident, $ty:ty, $($gen:tt),+) => {
+        impl<$($gen),*, Rhs> $newtrait<Rhs> for $ty
+        where $ty: $origtrait<Rhs> {
+            #[cfg(not(feature = "specialization"))]
+            type Output = <Self as $origtrait<Rhs>>::Output;
 
-    #[test]
-    fn test_saturating_mul() {
-        assert_eq!(255, 16u8.mul_saturate(16u8));
-    }
+            fn $fun(self, rhs: Rhs) -> Self::Output {
+                self $op rhs
+            }
+        }
+    };
+    (assign $op:tt, $origtrait:ident, $newtrait:ident, $fun:ident, $ty:ty,) => {
+        impl<Rhs> $newtrait<Rhs> for $ty
+        where $ty: $origtrait<Rhs> {
+            fn $fun(&mut self, rhs: Rhs) {
+                *self $op rhs;
+            }
+        }
+    };
+    (assign $op:tt, $origtrait:ident, $newtrait:ident, $fun:ident, $ty:ty, $($gen:tt),+) => {
+        impl<$($gen),*, Rhs> $newtrait<Rhs> for $ty
+        where $ty: $origtrait<Rhs> {
+            fn $fun(&mut self, rhs: Rhs) {
+                *self $op rhs;
+            }
+        }
+    };
+}
+
+macro_rules! impls_generic {
+    ($ty:ty; $($gen:tt),*; $op:tt $($ops:tt)*) => {
+        impls_generic!($ty; $($gen),*; $($ops)*);
+        impls_inner!(op $op, $ty, $($gen),*);
+    };
+    ($ty:ty; $($gen:tt),*; ) => {};
+}
+
+macro_rules! impls_plain {
+    ($ty:ty; $op:tt $($ops:tt)*) => {
+        impls_plain!($ty; $($ops)*);
+        impls_inner!(op $op, $ty, );
+    };
+    ($ty:ty;) => {};
+}
+
+/// Add implementations of the respective traits for a type
+///
+/// You call it with your type, optionally `:` plus all lifetimes and types
+/// your type is generic over, and a space-separated sequence of operations:
+///
+/// * add, add_assign
+/// * sub, sub_assign
+/// * mul, mul_assign
+/// * div, div_assign
+/// * rem, rem_assign
+/// * shl, shl_assign
+/// * shr, shr_assign
+/// * neg
+/// * all implements all operators
+///
+/// # Examples:
+///
+/// ```ignore
+/// type Boring<'a, T>(&'a T);
+///
+/// impls!(Boring<'a, T> : 'a, T; add sub mul div);
+#[macro_export]
+macro_rules! impls {
+    ($ty:ty : $($gen:tt),*; $($rest:tt)*) => {
+        impls_generic!($ty; $($gen),*; $($rest)*);
+    };
+    ($ty:ty; $($rest:tt)*) => {
+        impls_plain!($ty; $($rest)*);
+    };
+}
+
+impls!(std::borrow::Cow<'a, str> : 'a; add add_assign);
+impls!(String; add add_assign);
+impls!(core::num::Wrapping<N> : N; all);
+impls!(&'a core::num::Wrapping<N> : 'a, N; all);
+#[cfg(feature = "wrapping_int_impl")]
+mod wrapping_int_impls {
+    impls!(core::num::Wrapping<i8>; abs);
+    impls!(core::num::Wrapping<i16>; abs);
+    impls!(core::num::Wrapping<i32>; abs);
+    impls!(core::num::Wrapping<i64>; abs);
+    impls!(core::num::Wrapping<i128>; abs);
+    impls!(core::num::Wrapping<isize>; abs);
+
 }

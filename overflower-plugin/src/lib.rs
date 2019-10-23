@@ -56,7 +56,7 @@ impl Overflower {
             Overflower::Saturate => "Saturate",
             Overflower::Default => "Default"
         };
-        let crate_name = syn::parse_str::<Ident>("overflower_support").unwrap();
+        let crate_name = syn::parse_str::<Ident>("overflower").unwrap();
         let trait_name = syn::parse_str::<Ident>(&(method.split("_").flat_map(|s| {
             let mut me = s.chars();
             me.next().unwrap().to_uppercase().chain(me)
@@ -98,6 +98,7 @@ impl Overflower {
         let mut args = vec![Expr::Reference(ExprReference {
                 attrs: vec![],
                 and_token: Default::default(),
+                raw: Default::default(),
                 mutability: Some(Default::default()),
                 expr: Box::new(self.fold_expr(*left))
             }), self.fold_expr(*right)];
@@ -182,9 +183,9 @@ impl Overflower {
         };
         if is_abs {
             let func = match *self {
-                Overflower::Wrap => "::overflower_support::AbsWrap::abs_wrap",
-                Overflower::Panic => "::overflower_support::AbsPanic::abs_panic",
-                Overflower::Saturate => "::overflower_support::AbsSaturate::abs_saturate",
+                Overflower::Wrap => "::overflower::AbsWrap::abs_wrap",
+                Overflower::Panic => "::overflower::AbsPanic::abs_panic",
+                Overflower::Saturate => "::overflower::AbsSaturate::abs_saturate",
                 Overflower::Default => return Expr::Call(c),
             };
             c.func = Box::new(syn::parse_str::<Expr>(func).unwrap());
@@ -250,7 +251,6 @@ impl Fold for Overflower {
         }
         match e {
             Expr::Box(b) => foldexpr!(self, Expr::Box, b, fold::fold_expr_box),
-            Expr::InPlace(i) => foldexpr!(self, Expr::InPlace, i, fold::fold_expr_in_place),
             Expr::Array(a) => foldexpr!(self, Expr::Array, a, fold::fold_expr_array),
             Expr::Call(c) => self.make_call(c),
             Expr::MethodCall(c) => foldexpr!(self, Expr::MethodCall, c, fold::fold_expr_method_call),
@@ -290,6 +290,7 @@ impl Fold for Overflower {
     }
 }
 
+/// Mark a module or function to control overflow behavior within
 #[proc_macro_attribute]
 pub fn overflow(attrs: TokenStream, code: TokenStream) -> TokenStream {
     let input = parse_macro_input!(code as Item);
