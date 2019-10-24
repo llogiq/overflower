@@ -4,7 +4,9 @@
 use overflower::overflow;
 
 macro_rules! id {
-    ($x:expr) => { $x };
+    ($x:expr) => {
+        $x
+    };
 }
 
 #[test]
