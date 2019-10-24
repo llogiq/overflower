@@ -1,13 +1,10 @@
-extern crate quickcheck;
-extern crate overflower_support;
-
 use std::cmp::Ordering;
 use std::panic::{self, catch_unwind};
-use std::sync::{Once, ONCE_INIT};
+use std::sync::Once;
 use quickcheck::quickcheck;
-use overflower_support::*;
+use overflower::*;
 
-static HANDLER : Once = ONCE_INIT;
+static HANDLER : Once = Once::new();
 
 fn install_handler() {
     HANDLER.call_once(|| {

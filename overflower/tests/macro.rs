@@ -1,8 +1,7 @@
 #![feature(proc_macro_hygiene)]
 #![allow(const_err, unused)]
 
-#[macro_use] extern crate overflower;
-extern crate overflower_support;
+use overflower::overflow;
 
 macro_rules! id {
     ($x:expr) => { $x };

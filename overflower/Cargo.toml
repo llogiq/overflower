@@ -1,0 +1,27 @@
+[package]
+authors = ["Andre Bogus <bogusandre@gmail.com>"]
+categories = ["development-tools"]
+description = "A bunch of specialized traits + impls to allow automated overflow handling without type inference." 
+edition = "2018"
+keywords = ["arithmetic", "overflow", "nightly"]
+license = "Apache-2.0"
+name = "overflower"
+repository = "https://github.com/llogiq/overflower"
+version = "0.9.0"
+
+[features]
+# by default, we include the `#[overflow(..)]` attribute macro
+default = ["proc_macro"]
+# specialization is only available on nightly
+specialization = []
+# `.abs()` on `Wrapping<i*>` is also only available on nightly, but might be
+# stabilized sooner than specialization.
+wrapping_int_impl = []
+# You can exclude this if you only want to implement the traits for your types.
+proc_macro = ["overflower-plugin"]
+
+[dependencies]
+overflower-plugin = { path = "../overflower-plugin", optional = true }
+
+[dev-dependencies]
+quickcheck = "0.9"
