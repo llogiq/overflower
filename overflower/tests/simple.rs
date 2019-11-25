@@ -3,6 +3,12 @@ use std::borrow::Cow;
 
 #[test]
 #[overflow(wrap)]
+fn test_lit() {
+    let _ = -128_i8;
+}
+
+#[test]
+#[overflow(wrap)]
 fn test_simple_wrap() {
     255u8 + 1;
 }
@@ -30,7 +36,7 @@ fn test_simple_panic_add() {
 #[test]
 #[overflow(wrap)]
 fn test_simple_wrap_abs() {
-    i8::abs(-128 as i8);
+    i8::abs( -128_i8 );
 }
 
 #[test]
@@ -51,8 +57,9 @@ fn test_simple_wrap_assign_ops() {
 #[test]
 #[overflow(wrap)]
 fn test_refs() {
-    let x = &255u8;
-    let _ = x + x;
+    let x = &255_u8;
+    let _ = 255__u8 + x;
+    let _ = x + 255_u8;
 }
 
 #[test]
@@ -81,15 +88,15 @@ fn test_add_panic_normal() {
 #[should_panic]
 fn test_add_panic_panics() {
     ::std::panic::set_hook(Box::new(|_| ()));
-    255u8.add_panic(2u8);
+    255_u8.add_panic(2_u8);
 }
 
 #[test]
 fn test_sub_wrap() {
-    assert_eq!(255, 1u8.sub_wrap(2));
+    assert_eq!(255, 1_u8.sub_wrap(2));
 }
 
 #[test]
 fn test_saturating_mul() {
-    assert_eq!(255, 16u8.mul_saturate(16u8));
+    assert_eq!(255, 16_u8.mul_saturate(16_u8));
 }

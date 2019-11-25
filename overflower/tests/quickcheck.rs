@@ -25,7 +25,7 @@ macro_rules! test_add_panic {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.checked_add(args.1);
                 let actual = catch_unwind(
-                    || AddPanic::add_panic(args.0, args.1)).ok();
+                    || OverflowerAdd::add_panic(args.0, args.1)).ok();
                 expected == actual
             }
             install_handler();
@@ -51,7 +51,7 @@ macro_rules! test_add_wrap {
         fn $name() {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.wrapping_add(args.1);
-                let actual = AddWrap::add_wrap(args.0, args.1);
+                let actual = OverflowerAdd::add_wrap(args.0, args.1);
                 expected == actual
             }
             install_handler();
@@ -77,7 +77,7 @@ macro_rules! test_add_saturate {
         fn $name() {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.saturating_add(args.1);
-                let actual = AddSaturate::add_saturate(args.0, args.1);
+                let actual = OverflowerAdd::add_saturate(args.0, args.1);
                 expected == actual
             }
             install_handler();
@@ -104,7 +104,7 @@ macro_rules! test_sub_panic {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.checked_sub(args.1);
                 let actual = catch_unwind(
-                             || SubPanic::sub_panic(args.0, args.1)).ok();
+                             || OverflowerSub::sub_panic(args.0, args.1)).ok();
                 expected == actual
             }
             install_handler();
@@ -130,7 +130,7 @@ macro_rules! test_sub_wrap {
         fn $name() {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.wrapping_sub(args.1);
-                let actual = SubWrap::sub_wrap(args.0, args.1);
+                let actual = OverflowerSub::sub_wrap(args.0, args.1);
                 expected == actual
             }
             install_handler();
@@ -156,7 +156,7 @@ macro_rules! test_sub_saturate {
         fn $name() {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.saturating_sub(args.1);
-                let actual = SubSaturate::sub_saturate(args.0, args.1);
+                let actual = OverflowerSub::sub_saturate(args.0, args.1);
                 expected == actual
             }
             install_handler();
@@ -183,7 +183,7 @@ macro_rules! test_mul_panic {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.checked_mul(args.1);
                 let actual = catch_unwind(
-                             || MulPanic::mul_panic(args.0, args.1)).ok();
+                             || OverflowerMul::mul_panic(args.0, args.1)).ok();
                 expected == actual
             }
             install_handler();
@@ -209,7 +209,7 @@ macro_rules! test_mul_wrap {
         fn $name() {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.wrapping_mul(args.1);
-                let actual = MulWrap::mul_wrap(args.0, args.1);
+                let actual = OverflowerMul::mul_wrap(args.0, args.1);
                 expected == actual
             }
             install_handler();
@@ -235,7 +235,7 @@ macro_rules! test_mul_saturate {
         fn $name() {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.saturating_mul(args.1);
-                let actual = MulSaturate::mul_saturate(args.0, args.1);
+                let actual = OverflowerMul::mul_saturate(args.0, args.1);
                 expected == actual
             }
             install_handler();
@@ -262,7 +262,7 @@ macro_rules! test_div_panic {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.checked_div(args.1);
                 let actual = catch_unwind(
-                             || DivPanic::div_panic(args.0, args.1)).ok();
+                             || OverflowerDiv::div_panic(args.0, args.1)).ok();
                 expected == actual
             }
             install_handler();
@@ -289,7 +289,7 @@ macro_rules! test_div_wrap {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.checked_div(args.1);
                 let actual = catch_unwind(
-                             || DivWrap::div_wrap(args.0, args.1)).ok();
+                             || OverflowerDiv::div_wrap(args.0, args.1)).ok();
                 expected == actual
             }
             install_handler();
@@ -317,7 +317,7 @@ macro_rules! test_div_saturate {
                 let expected = if args.1 == 0 {
                     if args.0 == 0 { 0 } else { $max } 
                 } else { args.0 / args.1 };
-                let actual = DivSaturate::div_saturate(args.0, args.1);
+                let actual = OverflowerDiv::div_saturate(args.0, args.1);
                 expected == actual
             }
             install_handler();
@@ -346,7 +346,7 @@ macro_rules! test_idiv_saturate {
                     -1 => if args.0 == $min { $max } else { -args.0 },
                     _ => args.0 / args.1
                 };
-                let actual = DivSaturate::div_saturate(args.0, args.1);
+                let actual = OverflowerDiv::div_saturate(args.0, args.1);
                 expected == actual
             }
             install_handler();
@@ -368,7 +368,7 @@ macro_rules! test_rem_panic {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.checked_rem(args.1);
                 let actual = catch_unwind(
-                             || RemPanic::rem_panic(args.0, args.1)).ok();
+                             || OverflowerRem::rem_panic(args.0, args.1)).ok();
                 expected == actual
             }
             install_handler();
@@ -395,7 +395,7 @@ macro_rules! test_rem_wrap {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = args.0.checked_rem(args.1);
                 let actual = catch_unwind(
-                             || RemWrap::rem_wrap(args.0, args.1)).ok();
+                             || OverflowerRem::rem_wrap(args.0, args.1)).ok();
                 expected == actual
             }
             install_handler();
@@ -421,11 +421,11 @@ macro_rules! test_rem_saturate {
         fn $name() {
             fn check(args: ($ty, $ty)) -> bool {
                 let expected = if args.1 == 0 {
-                    if args.0 == 0 { 0 } else { $max }
+                    0
                 } else {
                     args.0 % args.1
                 };
-                let actual = RemSaturate::rem_saturate(args.0, args.1);
+                let actual = OverflowerRem::rem_saturate(args.0, args.1);
                 expected == actual
             }
             install_handler();
@@ -459,18 +459,16 @@ macro_rules! test_shl_panic {
         #[test]
         fn $name() {
             fn check(args: ($ty, $ty)) -> bool {
-                let expected = if args.0 == 0 {
-                    Some(0)
-                } else if args.1 < $bits as $ty && (!0) >> args.1 >= args.0 {
+                let expected = if args.1 < $bits {
                     Some(args.0 << args.1)
                 } else {
                     None
                 };
+                install_handler();
                 let actual = catch_unwind(
-                             || ShlPanic::shl_panic(args.0, args.1)).ok();
+                             || OverflowerShl::shl_panic(args.0, args.1)).ok();
                 expected == actual
             }
-            install_handler();
             quickcheck(check as fn(($ty, $ty)) -> bool);
         }
     };
@@ -487,36 +485,32 @@ macro_rules! test_ishl_panic {
         #[test]
         fn $name() {
             fn check(args: ($ty, $ty)) -> bool {
-                let expected = match args.0.cmp(&0) {
-                    Ordering::Equal => Some(0),
-                    Ordering::Greater => {
-                        if args.1 as usize >= $bits || ($max >> args.1) < args.0 { None } else { Some(args.0 << args.1) }
-                    }
-                    Ordering::Less => {
-                        if args.1 as usize >= $bits || ($min >> args.1) > args.0 { None } else { Some(args.0 << args.1) }
-                    }
+                let expected = if (args.1 as usize) < ($bits as usize) {
+                    Some(args.0 << args.1)
+                } else {
+                    None
                 };
+                install_handler();
                 let actual = catch_unwind(
-                             || ShlPanic::shl_panic(args.0, args.1)).ok();
+                             || OverflowerShl::shl_panic(args.0, args.1)).ok();
                 expected == actual
             }
-            install_handler();
             quickcheck(check as fn(($ty, $ty)) -> bool);
         }
     };
 }
 
-test_ishl_panic!(isize, test_shl_panic_isize, (USIZE_BITS - 1), std::isize::MAX, std::isize::MIN);
-test_ishl_panic!(i64, test_shl_panic_i64, 63, std::i64::MAX, std::i64::MIN);
-test_ishl_panic!(i32, test_shl_panic_i32, 31, std::i32::MAX, std::i32::MIN);
-test_ishl_panic!(i16, test_shl_panic_i16, 15, std::i16::MAX, std::i16::MIN);
-test_ishl_panic!(i8,  test_shl_panic_i8, 7, std::i8::MAX, std::i8::MIN);
+test_ishl_panic!(isize, test_shl_panic_isize, USIZE_BITS, std::isize::MAX, std::isize::MIN);
+test_ishl_panic!(i64, test_shl_panic_i64, 64, std::i64::MAX, std::i64::MIN);
+test_ishl_panic!(i32, test_shl_panic_i32, 32, std::i32::MAX, std::i32::MIN);
+test_ishl_panic!(i16, test_shl_panic_i16, 16, std::i16::MAX, std::i16::MIN);
+test_ishl_panic!(i8,  test_shl_panic_i8, 8, std::i8::MAX, std::i8::MIN);
 
 #[test]
 fn check_shl_wrap_usize() {
     fn check(args: (usize, usize)) -> bool {
         let expected = catch_unwind(|| args.0.wrapping_shl(args.1 as u32)).ok();
-        let actual = catch_unwind(|| ShlWrap::shl_wrap(args.0, args.1)).ok();
+        let actual = catch_unwind(|| OverflowerShl::shl_wrap(args.0, args.1)).ok();
         expected == actual
     }
     install_handler();
@@ -526,12 +520,12 @@ fn check_shl_wrap_usize() {
 #[test]
 fn check_shl_saturate_usize() {
     fn check(args: (usize, usize)) -> bool {
-        let expected = if args.1 as usize >= 64 || ((!0) >> args.1) < args.0 {
-            if args.0 == 0 { 0 } else { std::usize::MAX }
+        let expected = if args.1 as usize >= 64 {
+            0
         } else {
             args.0 << args.1
         };
-        let actual = ShlSaturate::shl_saturate(args.0, args.1);
+        let actual = OverflowerShl::shl_saturate(args.0, args.1);
         expected == actual
     }
     install_handler();
@@ -542,7 +536,7 @@ fn check_shl_saturate_usize() {
 fn check_shr_panic_usize() {
     fn check(args: (usize, usize)) -> bool {
         let expected = args.0.checked_shr(args.1 as u32);
-        let actual = catch_unwind(|| ShrPanic::shr_panic(args.0, args.1)).ok();
+        let actual = catch_unwind(|| OverflowerShr::shr_panic(args.0, args.1)).ok();
         expected == actual
     }
     install_handler();
@@ -553,7 +547,7 @@ fn check_shr_panic_usize() {
 fn check_shr_wrap_usize() {
     fn check(args: (usize, usize)) -> bool {
         let expected = catch_unwind(|| args.0.wrapping_shr(args.1 as u32)).ok();
-        let actual = catch_unwind(|| ShrWrap::shr_wrap(args.0, args.1)).ok();
+        let actual = catch_unwind(|| OverflowerShr::shr_wrap(args.0, args.1)).ok();
         expected == actual
     }
     install_handler();
@@ -564,7 +558,7 @@ fn check_shr_wrap_usize() {
 fn check_shr_saturate_usize() {
     fn check(args: (usize, usize)) -> bool {
         let expected = args.0.checked_shr(args.1 as u32).unwrap_or(0);
-        let actual = ShrSaturate::shr_saturate(args.0, args.1);
+        let actual = OverflowerShr::shr_saturate(args.0, args.1);
         expected == actual
     }
     install_handler();
