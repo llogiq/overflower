@@ -1,8 +1,8 @@
 #![feature(proc_macro_hygiene)]
 
 extern crate proc_macro;
-extern crate syn;
 extern crate quote;
+extern crate syn;
 
 use self::proc_macro::TokenStream;
 use quote::quote;
@@ -28,7 +28,7 @@ enum Overflower {
 }
 
 impl Parse for Overflower {
-     fn parse(input: ParseStream) -> Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         let ident = input.parse::<Ident>()?;
         if ident == "wrap" {
             Ok(Overflower::Wrap)
@@ -49,7 +49,10 @@ fn ident(s: &'_ str) -> Ident {
 }
 
 fn map_expr_box<F: FnOnce(Expr) -> Expr>(b: &mut Box<Expr>, f: F) {
-    *(b.as_mut()) = f(std::mem::replace(b.as_mut(), Expr::Verbatim(Default::default())));
+    *(b.as_mut()) = f(std::mem::replace(
+        b.as_mut(),
+        Expr::Verbatim(Default::default()),
+    ));
 }
 
 impl Overflower {
@@ -58,31 +61,34 @@ impl Overflower {
             Overflower::Wrap => "wrap",
             Overflower::Panic => "panic",
             Overflower::Saturate => "saturate",
-            Overflower::Default => "default"
+            Overflower::Default => "default",
         }
     }
-    
+
     fn is_overflow(&self, attrs: &[Attribute]) -> bool {
-        if let Overflower::Default = *self { return true; }
-        attrs.iter().any(|a| a.path.segments.iter()
-                .next().unwrap().ident == "overflow")
+        if let Overflower::Default = *self {
+            return true;
+        }
+        attrs
+            .iter()
+            .any(|a| a.path.segments.iter().next().unwrap().ident == "overflow")
     }
- 
-    fn make_overflow_unop(&mut self, m: &str, arg: Box<Expr>) -> Expr {        
-        // #[overflow(wrap)] -a → 
+
+    fn make_overflow_unop(&mut self, m: &str, arg: Box<Expr>) -> Expr {
+        // #[overflow(wrap)] -a →
         // { let x = a; (&x).overflower_neg_tag().neg_wrap(x) }
         let x_ident = ident("__overflower_x__");
         let tag_fn: Ident = ident(&format!("overflower_{}_tag", m));
         let op_fn: Ident = ident(&format!("{}_{}", m, self.tag()));
         parse_quote!({
             use overflower::*;
-            let #x_ident = #arg; 
+            let #x_ident = #arg;
             (&#x_ident).#tag_fn().#op_fn(#x_ident)
         })
     }
- 
+
     fn make_overflow_binop(&mut self, m: &str, left: Box<Expr>, right: Box<Expr>) -> Expr {
-        // #[overflow(wrap)] a + b → 
+        // #[overflow(wrap)] a + b →
         // { let (x, y) = (a, b); (&x).overflower_add_tag(&y).add_wrap(x, y) }
         let x_ident = ident("__overflower_x__");
         let y_ident = ident("__overflower_y__");
@@ -90,13 +96,13 @@ impl Overflower {
         let op_fn: Ident = ident(&format!("{}_{}", m, self.tag()));
         parse_quote!({
             use overflower::*;
-            let (#x_ident, #y_ident) = (#left, #right); 
+            let (#x_ident, #y_ident) = (#left, #right);
             (&(&#x_ident, &#y_ident)).#tag_fn(&#y_ident).#op_fn(#x_ident, #y_ident)
         })
     }
 
     fn make_overflow_assignop(&mut self, m: &str, left: Box<Expr>, right: Box<Expr>) -> Expr {
-        // #[overflow(wrap)] a += b → 
+        // #[overflow(wrap)] a += b →
         // { let (x, y) = (&mut a, b); (&*x).overflower_add_assign_tag(&y).add_assign_wrap(x, y) }
         let x_ident = ident("__overflower_x__");
         let y_ident = ident("__overflower_y__");
@@ -104,7 +110,7 @@ impl Overflower {
         let op_fn: Ident = ident(&format!("{}_{}", m, self.tag()));
         parse_quote!({
             use overflower::*;
-            let (#x_ident, #y_ident) = (&mut #left, #right); 
+            let (#x_ident, #y_ident) = (&mut #left, #right);
             (&(&*#x_ident, &#y_ident)).#tag_fn(&#y_ident).#op_fn(#x_ident, #y_ident)
         })
     }
@@ -116,11 +122,15 @@ impl Overflower {
                 // we don't modify consts
             } else if !self.is_overflow(&u.attrs) {
                 map_expr_box(&mut u.expr, |f| self.fold_expr(f));
-                return self.make_overflow_unop("neg", u.expr)
+                return self.make_overflow_unop("neg", u.expr);
             }
         }
         map_expr_box(&mut u.expr, |f| self.fold_expr(f));
-        Expr::Unary(ExprUnary { op: u.op, attrs: u.attrs, expr: u.expr })
+        Expr::Unary(ExprUnary {
+            op: u.op,
+            attrs: u.attrs,
+            expr: u.expr,
+        })
     }
 
     fn make_assign_op(&mut self, a: ExprAssignOp) -> Expr {
@@ -143,16 +153,13 @@ impl Overflower {
             syn::BinOp::RemEq(_) => self.make_overflow_assignop("rem_assign", left, right),
             syn::BinOp::ShlEq(_) => self.make_overflow_assignop("shl_assign", left, right),
             syn::BinOp::ShrEq(_) => self.make_overflow_assignop("shr_assign", left, right),
-            op => {
-                Expr::AssignOp(ExprAssignOp {
-                    attrs,
-                    left,
-                    op,
-                    right,
-                })
-            }
+            op => Expr::AssignOp(ExprAssignOp {
+                attrs,
+                left,
+                op,
+                right,
+            }),
         }
-
     }
 
     fn make_binary(&mut self, b: ExprBinary) -> Expr {
@@ -175,14 +182,12 @@ impl Overflower {
             syn::BinOp::Rem(_) => self.make_overflow_binop("rem", left, right),
             syn::BinOp::Shl(_) => self.make_overflow_binop("shl", left, right),
             syn::BinOp::Shr(_) => self.make_overflow_binop("shr", left, right),
-            op => {
-                Expr::Binary(ExprBinary {
-                    attrs,
-                    left,
-                    op,
-                    right,
-                })
-            }
+            op => Expr::Binary(ExprBinary {
+                attrs,
+                left,
+                op,
+                right,
+            }),
         }
     }
 
@@ -192,15 +197,15 @@ impl Overflower {
         }
         let is_abs = if let syn::Expr::Path(ref p) = *c.func {
             let segments = &p.path.segments;
-            static FACADE : [&str; 2] = ["std", "core"];
-            static TYPES : [&str; 6] = ["i8", "i16", "i32", "i64", "i128",
-                "isize"];
-            static FUNCTION : [&str; 1] = ["abs"];
-            static ABS_MATCHERS : [&[&str]; 3] = [&FACADE, &TYPES, &FUNCTION];
+            static FACADE: [&str; 2] = ["std", "core"];
+            static TYPES: [&str; 6] = ["i8", "i16", "i32", "i64", "i128", "isize"];
+            static FUNCTION: [&str; 1] = ["abs"];
+            static ABS_MATCHERS: [&[&str]; 3] = [&FACADE, &TYPES, &FUNCTION];
 
-            segments.iter().zip(&ABS_MATCHERS[3 - segments.len()..]).all(
-                |(seg, m)| seg.arguments.is_empty() && m.iter().any(
-                    |s| seg.ident == s))
+            segments
+                .iter()
+                .zip(&ABS_MATCHERS[3 - segments.len()..])
+                .all(|(seg, m)| seg.arguments.is_empty() && m.iter().any(|s| seg.ident == s))
         } else {
             false
         };
@@ -221,62 +226,80 @@ impl Overflower {
             return Expr::Macro(m);
         }
         let mut m = m;
-        m.attrs.extend(syn::parse_str::<OverflowerAttr>(match *self {
-            Overflower::Wrap => "#[overflow(wrap)]",
-            Overflower::Panic => "#[overflow(panic)]",
-            Overflower::Saturate => "#[overflow(saturate)]",
-            Overflower::Default => "#[overflow(default)]"
-        }).unwrap().0);
+        m.attrs.extend(
+            syn::parse_str::<OverflowerAttr>(match *self {
+                Overflower::Wrap => "#[overflow(wrap)]",
+                Overflower::Panic => "#[overflow(panic)]",
+                Overflower::Saturate => "#[overflow(saturate)]",
+                Overflower::Default => "#[overflow(default)]",
+            })
+            .unwrap()
+            .0,
+        );
         Expr::Macro(m)
     }
 }
 
 impl Fold for Overflower {
     fn fold_impl_item_method(&mut self, i: ImplItemMethod) -> ImplItemMethod {
-        if self.is_overflow(&i.attrs) { return i; }
+        if self.is_overflow(&i.attrs) {
+            return i;
+        }
         fold::fold_impl_item_method(self, i)
     }
 
     fn fold_item_fn(&mut self, i: ItemFn) -> ItemFn {
-        if self.is_overflow(&i.attrs) { return i; }
+        if self.is_overflow(&i.attrs) {
+            return i;
+        }
         fold::fold_item_fn(self, i)
     }
 
     fn fold_item_impl(&mut self, i: ItemImpl) -> ItemImpl {
-        if self.is_overflow(&i.attrs) { return i; }
+        if self.is_overflow(&i.attrs) {
+            return i;
+        }
         fold::fold_item_impl(self, i)
     }
 
     fn fold_item_mod(&mut self, i: ItemMod) -> ItemMod {
-        if self.is_overflow(&i.attrs) { return i; }
+        if self.is_overflow(&i.attrs) {
+            return i;
+        }
         fold::fold_item_mod(self, i)
     }
 
     fn fold_item_trait(&mut self, i: ItemTrait) -> ItemTrait {
-        if self.is_overflow(&i.attrs) { return i; }
+        if self.is_overflow(&i.attrs) {
+            return i;
+        }
         fold::fold_item_trait(self, i)
     }
 
     fn fold_trait_item_method(&mut self, i: TraitItemMethod) -> TraitItemMethod {
-        if self.is_overflow(&i.attrs) { return i; }
+        if self.is_overflow(&i.attrs) {
+            return i;
+        }
         fold::fold_trait_item_method(self, i)
     }
 
     fn fold_expr(&mut self, e: Expr) -> Expr {
         macro_rules! foldexpr {
             ($s:expr, $ty:path, $t:ident, $f:path) => {
-                $ty(if self.is_overflow(& $t . attrs) {
+                $ty(if self.is_overflow(&$t.attrs) {
                     $t
                 } else {
                     $f($s, $t)
                 })
-            }
+            };
         }
         match e {
             Expr::Box(b) => foldexpr!(self, Expr::Box, b, fold::fold_expr_box),
             Expr::Array(a) => foldexpr!(self, Expr::Array, a, fold::fold_expr_array),
             Expr::Call(c) => self.make_call(c),
-            Expr::MethodCall(c) => foldexpr!(self, Expr::MethodCall, c, fold::fold_expr_method_call),
+            Expr::MethodCall(c) => {
+                foldexpr!(self, Expr::MethodCall, c, fold::fold_expr_method_call)
+            }
             Expr::Tuple(t) => foldexpr!(self, Expr::Tuple, t, fold::fold_expr_tuple),
             Expr::Binary(b) => self.make_binary(b),
             Expr::Unary(u) => self.make_unary(u),
@@ -336,10 +359,8 @@ impl Fold for Overflower {
 ///
 /// # Examples
 ///
-/// ```
-/// #![feature(proc_macro_hygiene)]
-/// #![allow(const_err)]
-///# use overflower_plugin::overflow;
+/// ```ignore
+/// use overflower::overflow;
 ///
 /// #[overflow(saturate)]
 /// fn saturated() {

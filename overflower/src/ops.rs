@@ -148,6 +148,17 @@ macro_rules! op {
             fn $tag_fn(&self) -> $tag { $tag }
         }
     };
+    (tagsp $tag:ident, $tag_fn:ident, $kind:ident) => {
+        #[doc(hidden)]
+        pub struct<T> $tag<T>(PhantomData<T>);
+
+        #[doc(hidden)]
+        pub trait $kind {
+            #[doc(hidden)]
+            #[inline(always)]
+            fn $tag_fn(&self) -> $tag<T> { $tag(PhantomData) }
+        }
+    };
     (tag2impl $tag:ident, $t_op:ident, $wrap_op:ident, $op_panic:ident, $op_sat:ident,
         $wrap_fn:ident, $panic_fn:ident, $sat_fn:ident) => {
         impl $tag {
@@ -214,6 +225,28 @@ macro_rules! op {
             }
         }
     };
+    (tagiterimpl $tag:ident, $t_op:ident, $wrap_op:ident, $op_panic:ident, $op_sat:ident,
+        $wrap_fn:ident, $panic_fn:ident, $sat_fn:ident) => {
+        impl $tag {
+            #[doc(hidden)]
+            #[inline(always)]
+            pub fn $wrap_op<T: $t_op<Self>, I: Iterator<Item = Self>>(self, i: I) -> Self {
+                i.$wrap_fn()
+            }
+
+            #[doc(hidden)]
+            #[inline(always)]
+            pub fn $op_panic<T: $t_op<Self>, I: Iterator<Item = Self>>(self, i: I) -> Self {
+                i.$panic_fn()
+            }
+
+            #[doc(hidden)]
+            #[inline(always)]
+            pub fn $op_sat<T: $t_op<Self>, I: Iterator<Item = Self>>(self, i: I) -> Self {
+                i.$sat_fn()
+            }
+        }
+    };
     (impls2 $ty:ty) => { op!(impls2ty $ty); };
     (impls2 $ty:ty, $($rest:tt),*) => { op!(impls2ty $ty); op!(impls2 $($rest),*); };
     (impls1 $ty:ty) => { op!(impls1ty $ty); };
@@ -228,6 +261,10 @@ macro_rules! op {
                 }
             }
         }
+        op!(implsumprod $ty, OverflowerSum, sum_wrap, sum_panic, sum_saturate,
+            0, add_wrap, add_panic, add_saturate);
+        op!(implsumprod $ty, OverflowerProduct, product_wrap, product_panic,
+            product_saturate, 1, mul_wrap, mul_panic, mul_saturate);
         op!(impls2code $ty, $ty, self, r,
             OverflowerAdd, add_wrap, add_panic, add_saturate,
             OverflowerAddAssign, add_assign_wrap, add_assign_panic, add_assign_saturate,
@@ -340,6 +377,36 @@ macro_rules! op {
             fn $panic_assign(&mut self, r: $rty) { *self = self.$panic_op(r); }
             #[inline(always)]
             fn $sat_assign(&mut self, r: $rty) { *self = self.$sat_op(r); }
+        }
+    };
+    (implsumprod $ty:ty, $t:ident, $i_wrap:ident, $i_panic:ident, $i_sat:ident,
+        $base:expr, $op_wrap:ident, $op_panic:ident, $op_sat:ident) => {
+        impl $t for $ty {
+            fn $i_wrap<I: Iterator<Item = Self>>(i: I) -> Self {
+                i.fold($base, |acc, e| acc.$op_wrap(e))
+            }
+            
+            fn $i_panic<I: Iterator<Item = Self>>(i: I) -> Self {
+                i.fold($base, |acc, e| acc.$op_panic(e))
+            }
+            
+            fn $i_sat<I: Iterator<Item = Self>>(i: I) -> Self {
+                i.fold($base, |acc, e| acc.$op_sat(e))
+            }
+        }
+        
+        impl<'a> $t<&'a $ty> for $ty {
+            fn $i_wrap<I: Iterator<Item = &'a $ty>>(i: I) -> Self {
+                i.fold($base, |acc, e| acc.$op_wrap(e))
+            }
+            
+            fn $i_panic<I: Iterator<Item = &'a $ty>>(i: I) -> Self {
+                i.fold($base, |acc, e| acc.$op_panic(e))
+            }
+            
+            fn $i_sat<I: Iterator<Item = &'a $ty>>(i: I) -> Self {
+                i.fold($base, |acc, e| acc.$op_sat(e))
+            }
         }
     };
     (impls1ty $ty:ty) => { 

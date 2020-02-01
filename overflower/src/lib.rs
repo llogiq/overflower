@@ -12,14 +12,41 @@
 
 #![feature(proc_macro_hygiene)]
 #![deny(missing_docs, unsafe_code)]
+#![no_std]
+
 #[macro_use]
 mod ops;
+use core::iter::{Iterator, Product, Sum};
+use core::ops::*;
 pub use overflower_plugin::overflow;
-use std::ops::*;
 
 // used internally to compute a signed maximum (or minimum) for saturating
 trait SignedMax {
     fn signed_max(self) -> Self;
+}
+
+/// Overflow handling for summing iterators
+pub trait OverflowerSum<A = Self> {
+    /// wrapping sum
+    fn sum_wrap<I: Iterator<Item = A>>(i: I) -> Self;
+
+    /// panicking sum
+    fn sum_panic<I: Iterator<Item = A>>(i: I) -> Self;
+
+    /// saturating sum
+    fn sum_saturate<I: Iterator<Item = A>>(i: I) -> Self;
+}
+
+/// Overflow handling for the product of all values in an iterator
+pub trait OverflowerProduct<A = Self> {
+    /// wrapping sum
+    fn product_wrap<I: Iterator<Item = A>>(i: I) -> Self;
+
+    /// panicking sum
+    fn product_panic<I: Iterator<Item = A>>(i: I) -> Self;
+
+    /// saturating sum
+    fn product_saturate<I: Iterator<Item = A>>(i: I) -> Self;
 }
 
 op!(def2 OverflowerAdd, OverflowerAddAssign, Add, AddAssign,
@@ -91,4 +118,32 @@ op!(def1 OverflowerNeg, Neg, OverflowerNegTag, OverflowerStdNegTag,
 op!(trait1 OverflowerAbs, abs, abs_wrap, abs_panic, abs_saturate);
 op!(impls2 u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
 op!(impls1 i8, i16, i32, i64, i128, isize);
-//TODO impls
+op!(tagsp OverflowerSumTag, overflower_sum_tag, OverflowerSumKind);
+op!(tagsp OverflowerProductTag, overflower_product_tag, OverflowerProductKind);
+op!(tagsp OverflowerStdSumTag, overflower_sum_tag, OverflowerStdSumKind);
+op!(tagsp OverflowerStdProductTag, overflower_product_tag, OverflowerStdProductKind);
+impl<T> OverflowerStdSumKind for &T where T: Sum {}
+impl<T> OverflowerSumKind for T where T: OverflowerSum {}
+impl<T> OverflowerStdProductKind for &T where T: Product {}
+impl<T> OverflowerProductKind for T where T: OverflowerProduct {}
+op!(tagiterimpl OverflowerStdSumTag, Sum, sum_wrap, sum_panic, sum_saturate,
+    sum, sum, sum);
+op!(tagiterimpl OverflowerSumTag, OverflowerSum, sum_wrap, sum_panic, sum_saturate,
+    sum_wrap, sum_panic, sum_saturate);
+//op!(tagiterimpl OverflowerStdProductTag, Product, product_wrap, product_panic,
+//    product_saturate, product, product, product);
+//op!(tagiterimpl OverflowerProductTag, OverflowerProduct, product_wrap, product_panic,
+//    product_saturate, product_wrap, product_panic, product_saturate);
+
+/// This macro was used in the 0.9 version of overflower to forward `std` ops
+/// implementations to the overflower traits, but with our new autoref-based
+/// specialization machinery, this is no longer needed, so the macro is now a
+/// deprecated no-op.
+#[deprecated(
+    since = "1.0.0",
+    note = "This is no longer needed and will go away in some future version"
+)]
+#[macro_export]
+macro_rules! impls {
+    ($($tt:tt)*) => {};
+}

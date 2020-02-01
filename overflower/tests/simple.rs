@@ -36,7 +36,7 @@ fn test_simple_panic_add() {
 #[test]
 #[overflow(wrap)]
 fn test_simple_wrap_abs() {
-    i8::abs( -128_i8 );
+    i8::abs(-128_i8);
 }
 
 #[test]
@@ -67,13 +67,13 @@ fn test_refs() {
 fn test_strings() {
     let s = String::from("Hello, ");
     let _ = s + "World!";
-    
+
     let mut x = String::from("What's ");
     x += "up";
-    
+
     let cow = Cow::Borrowed("Hi, ");
     cow + "there!";
-    
+
     let mut cow = Cow::Borrowed("Hi, ");
     cow += "you!";
     cow += Cow::Borrowed(" Rust is great!");
