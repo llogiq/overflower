@@ -24,4 +24,4 @@ proc_macro = ["overflower-plugin"]
 overflower-plugin = { path = "../overflower-plugin", optional = true }
 
 [dev-dependencies]
-quickcheck = "0.9"
+quickcheck = "1.0"
